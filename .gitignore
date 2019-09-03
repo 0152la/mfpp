@@ -1,6 +1,9 @@
-build/
-include/
-include_clang/
-libs/
-input/
+# Folders
+build
+include
+include_clang
+libs
+input
+
+# Files
 compile_commands.json
