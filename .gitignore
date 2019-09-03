@@ -1,0 +1,6 @@
+build/
+include/
+include_clang/
+libs/
+input/
+compile_commands.json
