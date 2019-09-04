@@ -16,50 +16,7 @@
 #include "parseFuzzSpec.hpp"
 
 static llvm::cl::OptionCategory tmpOC("tmp-cat");
-
-//class replaceInputMetaVarRule final : public clang::tooling::SourceChangeRefactoringRule
-//{
-    //private:
-        //clang::DeclRefExpr input, output;
-
-    //public:
-        //replaceInputMetaVarRule(clang::DeclRefExpr& _input, clang::DeclRefExpr& _output) :
-            //input(_input), output(_output) {}
-
-        //llvm::Expected<clang::tooling::AtomicChanges>
-        //createSourceReplacements(clang::tooling::RefactoringRuleContext &rfCtx) override
-        //{
-            //clang::tooling::AtomicChange repl(rfCtx.getSources(), input.getBeginLoc());
-            //repl.replace(rfCtx.getSources(),
-                //clang::CharSourceRange::getCharRange(input.getBeginLoc(), input.getEndLoc()),
-                //"here");
-            //return {repl};
-            ////return llvm::Expected<clang::tooling::AtomicChanges>(repl);
-        //}
-//};
-
-//class replaceInputMetaVarAction final : public clang::tooling::RefactoringAction
-//{
-    //llvm::StringRef
-    //getCommand() const override
-    //{
-        //return "meta-in-replace";
-    //}
-
-    //llvm::StringRef
-    //getDescription() const override
-    //{
-        //return "Replace specified input variable.";
-    //}
-
-    //clang::tooling::RefactoringActionRules
-    //createActionRules() const override
-    //{
-        //clang::tooling::RefactoringActionRules rules;
-        //rules.push_back(clang::tooling::createRefactoringActionRule<replaceInputMetaVarRule>());
-        //return rules;
-    //}
-//};
+extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
 
 class fnMrInvPrinter : public clang::ast_matchers::MatchFinder::MatchCallback
 {
@@ -159,32 +116,10 @@ main(int argc, char const **argv)
     clang::tooling::CommonOptionsParser op(argc, argv, tmpOC);
     clang::tooling::ClangTool cTool(op.getCompilations(), op.getSourcePathList());
 
-    //std::string mrName = "meta_tests::identity::unite_self";
-    //clang::ast_matchers::StatementMatcher returnMatcher =
-        //clang::ast_matchers::returnStmt(
-            //clang::ast_matchers::hasAncestor(
-                //clang::ast_matchers::functionDecl(
-                    //clang::ast_matchers::hasName(mrName)))).bind("mrRet");
-
-    //clang::ast_matchers::DeclarationMatcher i1DeclMatcher =
-        //clang::ast_matchers::namedDecl(
-            //clang::ast_matchers::hasName("i1")).bind("i1Decl");
-
-    //clang::ast_matchers::DeclarationMatcher fnMrInvMatcher =
-        //clang::ast_matchers::functionDecl(
-            //clang::ast_matchers::hasAncestor(
-                //clang::ast_matchers::namespaceDecl(
-                //clang::ast_matchers::hasName("meta_tests")))).bind("fnMrInv");
-
-    ////i1DeclPrinter printer;
-    //mrRetStmtPrinter printer;
-    //clang::ast_matchers::MatchFinder finder;
-    ////finder.addMatcher(i1DeclMatcher, &printer);
-    //finder.addMatcher(returnMatcher, &printer);
 
     //cTool.run(clang::tooling::newFrontendActionFactory(&finder).get());
-    cTool.run(clang::tooling::newFrontendActionFactory<fuzz_input_parse::parseFuzzConfigAction>().get());
-    std::map<std::string, clang::APValue*> config_inputs = fuzz_input_parse::config_inputs;
-    return 0;
-    cTool.run(clang::tooling::newFrontendActionFactory<ParseMRInvokeAction>().get());
+    //cTool.run(clang::tooling::newFrontendActionFactory<fuzz_input_parse::parseFuzzConfigAction>().get());
+    //std::map<std::string, clang::APValue*> config_inputs = fuzz_input_parse::config_inputs;
+    cTool.run(clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>().get());
+    //cTool.run(clang::tooling::newFrontendActionFactory<ParseMRInvokeAction>().get());
 }

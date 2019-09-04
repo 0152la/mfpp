@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(MetaLibClangVer)
 set(CMAKE_BUILD_TYPE Debug)
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_COMPILER clang++)
 #set(CMAKE_CXX_COMPILER g++)
 
@@ -37,8 +37,8 @@ endif()
 add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 #llvm_config(mrParser core)
 add_executable(mtFuzzer
-    ${SRC_DIR}/parseFuzzSpec.cpp
     ${SRC_DIR}/fuzzMetaTest.cpp
+    ${INCLUDE_DIR}/parseFuzzSpec.hpp
     ${INCLUDE_DIR}/libSpecReader.hpp
     )
 

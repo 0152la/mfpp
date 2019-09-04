@@ -48,7 +48,6 @@ class ExposedFuncDecl
         compare(const ExposedFuncDecl& lhs, const ExposedFuncDecl& rhs)
         {
             //return lhs.getSignature().compare(rhs.getSignature()) < 0;
-            std::cout << "Comparing " << lhs.name << " and " << rhs.name << std::endl;
             if (int name_cmp = lhs.name.compare(rhs.name))
             {
                 return name_cmp < 0;
@@ -85,7 +84,8 @@ std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
 class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
-        virtual void run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
+        virtual void
+        run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         {
             if (const clang::CXXMethodDecl* MD =
                     Result.Nodes.getNodeAs<clang::CXXMethodDecl>("annotateFnDecl"))
