@@ -6,6 +6,7 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Frontend/CompilerInstance.h"
+#include "clang/Lex/Lexer.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/Tooling/Tooling.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -13,21 +14,25 @@
 
 #include <map>
 #include <iostream>
+#include <vector>
 
+#include "clang_interface.hpp"
 //namespace fuzz_input_parse
 //{
 
 const std::string fuzz_config = "./input/spec_fuzz.hpp";
 static std::map<std::string, clang::APValue*> config_inputs;
-static clang::SourceLocation template_start, template_end;
+static std::pair<const clang::CallExpr*, const clang::CallExpr*>
+    fuzz_template_bounds(nullptr, nullptr);
+//static std::vector<std::pair<const clang::Stmt*, const clang::CallExpr*>>
+    //fuzz_new_vars;
 
-class fuzzVarDecl
+struct fuzzVarDecl
 {
-    private:
+    public:
         std::string name;
         clang::QualType type;
 
-    public:
         fuzzVarDecl(std::string _name, clang::QualType _type) :
             name(_name), type(_type) {};
 
@@ -39,6 +44,15 @@ class fuzzVarDecl
 
 };
 
+struct fuzzNewCall
+{
+    public:
+        const clang::Stmt* base_stmt;
+        const clang::CallExpr* fuzz_call;
+        const clang::DeclRefExpr* fuzz_ref;
+};
+
+static std::vector<fuzzNewCall> fuzz_new_vars;
 static std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
     declared_fuzz_vars(&fuzzVarDecl::compare);
 
@@ -140,7 +154,11 @@ class gatherDeclaredObjsVisitor :
                     if (clang::VarDecl* vd = llvm::dyn_cast<clang::VarDecl>(d);
                         vd && !llvm::dyn_cast<clang::ParmVarDecl>(vd))
                     {
+                        //vd->getType()->dump();
                         declared_fuzz_vars.emplace(vd->getNameAsString(), vd->getType());
+                        addLibType(vd->getType().getAsString());
+                        addLibDeclaredObj(vd->getNameAsString(),
+                            vd->getType().getAsString());
                     }
                 }
             }
@@ -181,22 +199,128 @@ class fuzzFuncExpanderVisitor :
         }
 };
 
+class newVariableFuzzerExpander
+{
+    public:
+        static void
+        expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
+        {
+            for (fuzzNewCall fnc : fuzz_new_vars)
+            {
+                const clang::Stmt* base_stmt = fnc.base_stmt;
+                const clang::DeclRefExpr* fuzz_ref = fnc.fuzz_ref;
+                const clang::Stmt* fuzz_call = fuzz_ref;
+                const llvm::StringRef indent =
+                    clang::Lexer::getIndentationForLine(base_stmt->getBeginLoc(),
+                        rw.getSourceMgr());
+                while (true)
+                {
+                    auto it = ctx.getParents(*fuzz_call).begin();
+                    fuzz_call = it->get<clang::Expr>();
+                    if (llvm::dyn_cast<clang::CallExpr>(fuzz_call))
+                    {
+                        break;
+                    }
+                }
+                assert(fuzz_ref->getNumTemplateArgs() == 1);
+                std::pair<std::string, std::string> fuzzer_output =
+                    generateObjectInstructions(fuzz_ref->template_arguments()[0]
+                        .getArgument().getAsType().getAsString());
+                rw.InsertText(base_stmt->getBeginLoc(), fuzzer_output.first + indent.str());
+                rw.ReplaceText(clang::SourceRange(fuzz_call->getBeginLoc(),
+                    fuzz_call->getEndLoc()), fuzzer_output.second);
+            }
+        }
+};
+
+class newVariableFuzzerParser : public clang::ast_matchers::MatchFinder::MatchCallback
+{
+    public:
+        virtual void
+        run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
+        {
+            fuzzNewCall fnc;
+            if (const clang::Stmt* s =
+                    Result.Nodes.getNodeAs<clang::Stmt>("baseStmt"))
+            {
+                //s->dump();
+                fnc.base_stmt = s;
+            }
+            //if (const clang::CallExpr* ce =
+                    //Result.Nodes.getNodeAs<clang::CallExpr>("fuzzCall"))
+            //{
+                ////ce->dump();
+                //fnc.fuzz_call = ce;
+            //}
+            if (const clang::DeclRefExpr* dre =
+                    Result.Nodes.getNodeAs<clang::DeclRefExpr>("fuzzRef"))
+            {
+                //dre->dump();
+                fnc.fuzz_ref = dre;
+            }
+            fuzz_new_vars.push_back(fnc);
+        }
+};
+
+class newVariableFuzzerMatcher : public clang::ASTConsumer
+{
+    private:
+        clang::ast_matchers::MatchFinder matcher;
+        newVariableFuzzerParser parser;
+
+    public:
+        newVariableFuzzerMatcher()
+        {
+            matcher.addMatcher(
+                clang::ast_matchers::stmt(
+                clang::ast_matchers::allOf(
+                /* Base stmt two away from main.. */
+                clang::ast_matchers::hasParent(
+                clang::ast_matchers::stmt(
+                clang::ast_matchers::hasParent(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::isMain())))),
+                /* .. which contains call to fuzz_new */
+                clang::ast_matchers::hasDescendant(
+                //clang::ast_matchers::callExpr(
+                //clang::ast_matchers::callee(
+                clang::ast_matchers::declRefExpr(
+                clang::ast_matchers::to(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::hasName(
+                "fuzz::fuzz_new"))))
+                    .bind("fuzzRef"))) )
+                    //.bind("fuzzCall"))))
+                    .bind("baseStmt"), &parser);
+        }
+
+        void matchAST(clang::ASTContext& ctx)
+        {
+            matcher.matchAST(ctx);
+        }
+};
+
 class parseFuzzConstructs : public clang::ASTConsumer
 {
     private:
-        parseFuzzConstructsVisitor parseConstructVis;
+        parseFuzzConstructsVisitor parseConstructsVis;
         gatherDeclaredObjsVisitor gatherDeclObjsVis;
         fuzzFuncExpanderVisitor fuzzFuncExpandVis;
+        newVariableFuzzerMatcher newVarFuzzerMtch;
+        clang::Rewriter& rw;
 
     public:
-        parseFuzzConstructs(clang::Rewriter& _rw) : parseConstructVis(_rw) {};
+        parseFuzzConstructs(clang::Rewriter& _rw) : parseConstructsVis(_rw),
+            rw(_rw) {};
 
         void
         HandleTranslationUnit(clang::ASTContext& ctx) override
         {
-            //parseConstructsVis.TraverseDecl(ctx.getTranslationUnitDecl());
-            //gatherDeclObjsVis.TraverseDecl(ctx.getTranslationUnitDecl());
-            fuzzFuncExpandVis.TraverseDecl(ctx.getTranslationUnitDecl());
+            parseConstructsVis.TraverseDecl(ctx.getTranslationUnitDecl());
+            gatherDeclObjsVis.TraverseDecl(ctx.getTranslationUnitDecl());
+            //fuzzFuncExpandVis.TraverseDecl(ctx.getTranslationUnitDecl());
+            newVarFuzzerMtch.matchAST(ctx);
+            newVariableFuzzerExpander::expandLoggedNewVars(rw, ctx);
         }
 };
 
@@ -206,19 +330,95 @@ class templateLocLogger : public clang::ast_matchers::MatchFinder::MatchCallback
         virtual void
         run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         {
-            std::cout << "SET TRY" << std::endl;
-            if (const clang::DeclRefExpr* start_dre =
-                    Result.Nodes.getNodeAs<clang::DeclRefExpr>("startTemplate"))
+            if (const clang::CallExpr* start_ce =
+                    Result.Nodes.getNodeAs<clang::CallExpr>("startTemplate"))
             {
-                template_start = start_dre->getEndLoc();
-                std::cout << "SET BEGIN" << std::endl;
+                fuzz_template_bounds.first = start_ce;
             }
-            else if (const clang::DeclRefExpr* end_dre =
-                    Result.Nodes.getNodeAs<clang::DeclRefExpr>("endTemplate"))
+            else if (const clang::CallExpr* end_ce =
+                    Result.Nodes.getNodeAs<clang::CallExpr>("endTemplate"))
             {
-                template_end = end_dre->getBeginLoc();
-                std::cout << "SET END" << std::endl;
+                fuzz_template_bounds.second = end_ce;
             }
+        }
+};
+
+class templateDuplicator : public clang::ASTConsumer
+{
+    private:
+        clang::ast_matchers::MatchFinder matcher;
+        clang::Rewriter& rw;
+        templateLocLogger logger;
+
+    public:
+        templateDuplicator(clang::Rewriter& _rw) : rw(_rw)
+        {
+            matcher.addMatcher(
+                clang::ast_matchers::callExpr(
+                clang::ast_matchers::callee(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::hasName(
+                "fuzz::end"))))
+                    .bind("endTemplate"), &logger);
+
+            matcher.addMatcher(
+                clang::ast_matchers::callExpr(
+                clang::ast_matchers::callee(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::hasName(
+                "fuzz::start"))))
+                    .bind("startTemplate"), &logger);
+        };
+
+        // TODO rather than remove, duplicate
+        void
+        HandleTranslationUnit(clang::ASTContext& ctx) override
+        {
+            matcher.matchAST(ctx);
+
+            rw.RemoveText(
+                clang::SourceRange(fuzz_template_bounds.first->getBeginLoc(),
+                clang::Lexer::getLocForEndOfToken(
+                    fuzz_template_bounds.first->getEndLoc(), 0,
+                        rw.getSourceMgr(), rw.getLangOpts())));
+            rw.RemoveText(
+                clang::SourceRange(fuzz_template_bounds.second->getBeginLoc(),
+                clang::Lexer::getLocForEndOfToken(
+                    fuzz_template_bounds.second->getEndLoc(), 0,
+                        rw.getSourceMgr(), rw.getLangOpts())));
+
+            //llvm::outs() << clang::Lexer::getSourceText(
+                //clang::CharSourceRange::getCharRange(
+                    //clang::SourceRange(
+                    //fuzz_template_bounds.first->getBeginLoc(),
+                    ////fuzz_template_bounds.second->getEndLoc())),
+                    //clang::Lexer::getLocForEndOfToken(
+                        //fuzz_template_bounds.second->getEndLoc(), 0,
+                        //rw.getSourceMgr(), rw.getLangOpts()))),
+                //rw.getSourceMgr(), rw.getLangOpts()) << '\n';
+
+            //rw.ReplaceText(fuzz_template,
+        };
+};
+
+class templateDuplicatorAction : public clang::ASTFrontendAction
+{
+    private:
+        clang::Rewriter rw;
+
+    public:
+        void
+        EndSourceFileAction() override
+        {
+            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
+                //.write(llvm::outs());
+        }
+
+        std::unique_ptr<clang::ASTConsumer>
+        CreateASTConsumer(clang::CompilerInstance& ci, llvm::StringRef file) override
+        {
+            rw.setSourceMgr(ci.getSourceManager(), ci.getLangOpts());
+            return std::make_unique<templateDuplicator>(rw);
         }
 };
 
@@ -231,50 +431,17 @@ class parseFuzzConstructsAction : public clang::ASTFrontendAction
     public:
         parseFuzzConstructsAction() {}
 
-        bool
-        BeginSourceFileAction(clang::CompilerInstance& ci) override
-        {
-            return true;
-        }
-
         void
         EndSourceFileAction() override
         {
-            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-                //.write(llvm::outs());
+            rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
+                .write(llvm::outs());
         }
 
         std::unique_ptr<clang::ASTConsumer>
         CreateASTConsumer(clang::CompilerInstance& ci, llvm::StringRef file) override
         {
             rw.setSourceMgr(ci.getSourceManager(), ci.getLangOpts());
-
-            clang::ast_matchers::MatchFinder meta_in_template_matcher;
-            meta_in_template_matcher.addMatcher(
-                clang::ast_matchers::declRefExpr(
-                clang::ast_matchers::to(
-                clang::ast_matchers::functionDecl(
-                clang::ast_matchers::hasName(
-                "fuzz::end"))))
-                    .bind("endTemplate"), &tll);
-
-            meta_in_template_matcher.addMatcher(
-                clang::ast_matchers::declRefExpr(
-                clang::ast_matchers::to(
-                clang::ast_matchers::functionDecl(
-                clang::ast_matchers::hasName(
-                "fuzz::start"))))
-                    .bind("startTemplate"), &tll);
-
-            meta_in_template_matcher.matchAST(ci.getASTContext());
-            std::cout << template_start.printToString(ci.getSourceManager()) << std::endl;
-            std::cout << template_end.printToString(ci.getSourceManager()) << std::endl;
-            clang::SourceRange fuzz_template(template_start, template_end);
-            std::cout << fuzz_template.printToString(ci.getSourceManager()) << std::endl;
-            exit(1);
-            //rw.ReplaceText(clang::SourceRange(template_start, template_end),
-                //"test")
-
             return std::make_unique<parseFuzzConstructs>(rw);
         }
 };

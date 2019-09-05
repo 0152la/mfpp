@@ -13,6 +13,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include_directories("${INCLUDE_DIR}")
 include_directories("${CMAKE_SOURCE_DIR}/include")
 include_directories("${CMAKE_SOURCE_DIR}/include_clang")
+include_directories("/home/sentenced/Documents/Internships/2018_ETH/work/testing_functional/include")
 #include_directories("/usr/local/lib/clang/10.0.0/include")
 link_directories("${LIB_DIR}")
 link_directories("/usr/local/lib/")
@@ -62,4 +63,8 @@ target_link_libraries(mtFuzzer
     clangRewriteFrontend
     clangSerialization
     clangStaticAnalyzerFrontend
-    clangTooling)
+    clangTooling
+    fmt
+    yaml-cpp
+    metalib_fuzz
+    )

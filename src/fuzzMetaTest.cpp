@@ -120,6 +120,7 @@ main(int argc, char const **argv)
     //cTool.run(clang::tooling::newFrontendActionFactory(&finder).get());
     //cTool.run(clang::tooling::newFrontendActionFactory<fuzz_input_parse::parseFuzzConfigAction>().get());
     //std::map<std::string, clang::APValue*> config_inputs = fuzz_input_parse::config_inputs;
+    cTool.run(clang::tooling::newFrontendActionFactory<templateDuplicatorAction>().get());
     cTool.run(clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>().get());
     //cTool.run(clang::tooling::newFrontendActionFactory<ParseMRInvokeAction>().get());
 }
