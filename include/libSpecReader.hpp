@@ -13,24 +13,36 @@
 #include <iostream>
 #include <sstream>
 
+#include "clang_interface.hpp"
+
 class ExposedFuncDecl
 {
 
     public:
 
         std::string name;
+        const clang::CXXRecordDecl* enclosing_class;
         clang::QualType ret_typ;
         llvm::ArrayRef<clang::ParmVarDecl*> params;
+        bool statik;
 
-        ExposedFuncDecl(llvm::StringRef _name, clang::QualType _ret_typ,
-            llvm::ArrayRef<clang::ParmVarDecl*> _params) :
-            name(_name), ret_typ(_ret_typ), params(_params) {};
+        ExposedFuncDecl(llvm::StringRef _name, const clang::CXXRecordDecl* _ec,
+            clang::QualType _ret_typ,
+            llvm::ArrayRef<clang::ParmVarDecl*> _params, bool _statik = false) :
+            name(_name), enclosing_class(_ec), ret_typ(_ret_typ),
+            params(_params), statik(_statik) {};
 
         std::string
         getSignature() const
         {
             std::stringstream ss;
-            ss << ret_typ.getAsString() << " " << name << "(";
+            if (this->statik)
+            {
+                ss << "static ";
+            }
+            ss << ret_typ.getAsString() << " ";
+            ss << enclosing_class->getQualifiedNameAsString() << "::";
+            ss << name << "(";
             if (!this->params.empty())
             {
                 ss << std::accumulate(std::next(std::begin(this->params)),
@@ -48,6 +60,12 @@ class ExposedFuncDecl
         compare(const ExposedFuncDecl& lhs, const ExposedFuncDecl& rhs)
         {
             //return lhs.getSignature().compare(rhs.getSignature()) < 0;
+            if (int enclosing_class_name_cmp =
+                    lhs.enclosing_class->getName().compare(
+                        rhs.enclosing_class->getName()))
+            {
+                return enclosing_class_name_cmp < 0;
+            }
             if (int name_cmp = lhs.name.compare(rhs.name))
             {
                 return name_cmp < 0;
@@ -88,13 +106,33 @@ class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCal
         run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         {
             if (const clang::CXXMethodDecl* MD =
-                    Result.Nodes.getNodeAs<clang::CXXMethodDecl>("annotateFnDecl"))
+                    //Result.Nodes.getNodeAs<clang::CXXMethodDecl>("annotateFnDecl"))
+                    Result.Nodes.getNodeAs<clang::CXXMethodDecl>("exposedDecl"))
             {
                 if (MD->getAttr<clang::AnnotateAttr>()->getAnnotation()
                         .equals(exposingAttributeStr))
                 {
-                    exposed_funcs.emplace(MD->getNameAsString(), MD->getReturnType(),
-                        MD->parameters());
+                    exposed_funcs.emplace(MD->getNameAsString(), MD->getParent(),
+                        MD->getReturnType(), MD->parameters(), MD->isStatic());
+                }
+            }
+            if (const clang::CXXRecordDecl* RD =
+                    //Result.Nodes.getNodeAs<clang::CXXRecordDecl>("annotateRecDecl"))
+                    Result.Nodes.getNodeAs<clang::CXXRecordDecl>("exposedDecl"))
+            {
+                if (RD->getAttr<clang::AnnotateAttr>()->getAnnotation()
+                        .equals(exposingAttributeStr))
+                {
+                    fuzzer::clang::addLibType(RD->getQualifiedNameAsString());
+                }
+            }
+            if (const clang::EnumDecl* ED =
+                    Result.Nodes.getNodeAs<clang::EnumDecl>("exposedDecl"))
+            {
+                if (ED->getAttr<clang::AnnotateAttr>()->getAnnotation()
+                        .equals(exposingAttributeStr))
+                {
+                    fuzzer::clang::addLibType(ED->getQualifiedNameAsString());
                 }
             }
         }
@@ -109,11 +147,23 @@ class libSpecReader : public clang::ASTConsumer
     public:
         libSpecReader()
         {
+            //matcher.addMatcher(
+                //clang::ast_matchers::functionDecl(
+                //clang::ast_matchers::hasAttr(
+                //clang::attr::Annotate))
+                    //.bind("annotateFnDecl"), &printer);
+
+            //matcher.addMatcher(
+                //clang::ast_matchers::cxxRecordDecl(
+                //clang::ast_matchers::hasAttr(
+                //clang::attr::Annotate))
+                    //.bind("annotateRecDecl"), &printer);
+
             matcher.addMatcher(
-                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::decl(
                 clang::ast_matchers::hasAttr(
                 clang::attr::Annotate))
-                    .bind("annotateFnDecl"), &printer);
+                    .bind("exposedDecl"), &printer);
         };
 
         void HandleTranslationUnit(clang::ASTContext& ctx) override
@@ -127,7 +177,27 @@ class libSpecReaderAction : public clang::ASTFrontendAction
     public:
         libSpecReaderAction() {};
 
-        std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File)
+        void
+        EndSourceFileAction() override
+        {
+            for (ExposedFuncDecl efd : exposed_funcs)
+            {
+                std::vector<std::string> str_params;
+                std::transform(efd.params.begin(), efd.params.end(),
+                    std::back_inserter(str_params), [](clang::ParmVarDecl* param)
+                    {
+                        //param->dump();
+                        return param->getOriginalType().getAsString();
+                    });
+                fuzzer::clang::addLibFunc(efd.name,
+                    efd.enclosing_class->getQualifiedNameAsString(),
+                    efd.ret_typ.getAsString(), str_params);
+            }
+            exposed_funcs.clear();
+        };
+
+        std::unique_ptr<clang::ASTConsumer>
+        CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override
         {
             return std::make_unique<libSpecReader>();
         }

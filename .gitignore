@@ -1,9 +1,11 @@
 # Folders
 build
-include
+include_local
 include_clang
+include_libfuzz
 libs
 input
+output
 
 # Files
 compile_commands.json
