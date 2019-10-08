@@ -39,8 +39,10 @@ add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 #llvm_config(mrParser core)
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
+    ${SRC_DIR}/fuzzHelperFuncStitch.cpp
     ${INCLUDE_DIR}/parseFuzzSpec.hpp
     ${INCLUDE_DIR}/libSpecReader.hpp
+    ${INCLUDE_DIR}/fuzzHelperFuncStitch.hpp
     )
 
 target_link_libraries(mrParser PRIVATE

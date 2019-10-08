@@ -24,17 +24,29 @@ static std::map<std::string, clang::APValue*> config_inputs;
 static std::pair<const clang::CallExpr*, const clang::CallExpr*>
     fuzz_template_bounds(nullptr, nullptr);
 static std::set<clang::VarDecl*> input_template_var_decls;
-static std::set<const clang::VarDecl*> common_template_var_decls;
 static std::map<size_t, std::vector<std::string>>
     input_template_copies;
 static const clang::CompoundStmt* main_child;
 static std::vector<const clang::CallExpr*> meta_test_calls;
 
 extern size_t meta_input_fuzz_count;
+extern size_t meta_test_rel_count;
 extern llvm::SmallString<256> rewritten_input_file;
 extern std::string output_file;
 extern std::string meta_input_var_type;
 extern std::string set_meta_tests_path;
+
+bool
+inFuzzTemplate(const clang::Decl* d, clang::SourceManager& SM)
+{
+    if (!fuzz_template_bounds.first || !fuzz_template_bounds.second)
+    {
+        return false;
+    }
+    clang::BeforeThanCompare<clang::SourceLocation> btc(SM);
+    return btc(d->getBeginLoc(), fuzz_template_bounds.second->getEndLoc()) &&
+        btc(fuzz_template_bounds.first->getBeginLoc(), d->getEndLoc());
+}
 
 struct stmtRedeclTemplateVars
 {
@@ -82,6 +94,8 @@ static std::vector<fuzzNewCall> fuzz_new_vars;
 static std::vector<stmtRedeclTemplateVars> stmt_rewrite_map;
 std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
     declared_fuzz_vars(&fuzzVarDecl::compare);
+static std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
+    common_template_var_decls(&fuzzVarDecl::compare);
 
 class fuzzConfigRecorder : public clang::ast_matchers::MatchFinder::MatchCallback
 {
@@ -226,7 +240,8 @@ class parseFuzzConstructsVisitor :
         {
             if (in_fuzz_template)
             {
-                common_template_var_decls.erase(vd);
+                //std::cout << vd->getNameAsString() << std::endl;
+                //common_template_var_decls.erase(vd);
                 clang::ASTContext::DynTypedNodeList vd_parents =
                     this->ctx.getParents(*vd);
                 assert(vd_parents.size() == 1);
@@ -372,11 +387,20 @@ class fuzzExpander
                     fvd.name + "_" + std::to_string(output_var_count),
                     fvd.type);
             }
-            for (const clang::VarDecl* vd : common_template_var_decls)
-            {
-                duplicate_vars.emplace(vd->getNameAsString(),
-                    vd->getType().getAsString());
-            }
+            std::for_each(common_template_var_decls.begin(),
+                common_template_var_decls.end(),
+                [&duplicate_vars](fuzzVarDecl fvd)
+                {
+                    duplicate_vars.emplace(fvd.name, fvd.type);
+                });
+
+            //for (const clang::VarDecl* vd : common_template_var_decls)
+            //{
+                //vd->dump();
+                //std::cout << vd->getNameAsString() << std::endl;
+                //duplicate_vars.emplace(vd->getNameAsString(),
+                    //vd->getType().getAsString());
+            //}
             return duplicate_vars;
         }
 
@@ -450,7 +474,8 @@ class fuzzExpander
                         rw.getSourceMgr()).str();
                 rw.ReplaceText(meta_call->getSourceRange(),
                     fuzzer::clang::generateMetaTestInstructions(input_var_names,
-                        meta_input_var_type, indent, set_meta_tests_path));
+                        meta_input_var_type, indent, set_meta_tests_path,
+                        meta_test_rel_count));
             }
         }
 };
@@ -466,11 +491,11 @@ class newVariableFuzzerParser : public clang::ast_matchers::MatchFinder::MatchCa
             {
                 meta_test_calls.push_back(ce);
             }
-            else if (const clang::VarDecl* vd =
-                    Result.Nodes.getNodeAs<clang::VarDecl>("mainVarDecl"))
-            {
-                common_template_var_decls.insert(vd);
-            }
+            //else if (const clang::VarDecl* vd =
+                    //Result.Nodes.getNodeAs<clang::VarDecl>("mainVarDecl"))
+            //{
+                //common_template_var_decls.insert(vd);
+            //}
             else
             {
                 fuzzNewCall fnc;
@@ -578,24 +603,25 @@ class newVariableFuzzerMatcher : public clang::ASTConsumer
                 clang::ast_matchers::callee(
                 clang::ast_matchers::functionDecl(
                 clang::ast_matchers::hasName(
-                "fuzz::end"))))
+                "fuzz::start"))))
                     .bind("outputVarStart"), &remover);
 
             //matcher.addMatcher(
                 //clang::ast_matchers::nullStmt()
                     //.bind("empty"), &remover);
                     //
-            matcher.addMatcher(
-                clang::ast_matchers::varDecl(
-                clang::ast_matchers::allOf(
-                    clang::ast_matchers::hasAncestor(
-                    clang::ast_matchers::functionDecl(
-                    clang::ast_matchers::isMain()))
-                    ,
-                    clang::ast_matchers::unless(
-                    clang::ast_matchers::parmVarDecl())
-                ))
-                    .bind("mainVarDecl"), &parser);
+
+            //matcher.addMatcher(
+                //clang::ast_matchers::varDecl(
+                //clang::ast_matchers::allOf(
+                    //clang::ast_matchers::hasAncestor(
+                    //clang::ast_matchers::functionDecl(
+                    //clang::ast_matchers::isMain()))
+                    //,
+                    //clang::ast_matchers::unless(
+                    //clang::ast_matchers::parmVarDecl())
+                //))
+                    //.bind("mainVarDecl"), &parser);
         }
 
         void matchAST(clang::ASTContext& ctx)
@@ -627,7 +653,12 @@ class parseFuzzConstructs : public clang::ASTConsumer
 
 class templateLocLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
+    private:
+        clang::SourceManager& SM;
+
     public:
+        templateLocLogger(clang::SourceManager& _SM) : SM(_SM) {};
+
         virtual void
         run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         {
@@ -645,6 +676,14 @@ class templateLocLogger : public clang::ast_matchers::MatchFinder::MatchCallback
                     Result.Nodes.getNodeAs<clang::CompoundStmt>("mainChild"))
             {
                 main_child = cs;
+            }
+            else if (const clang::VarDecl* vd =
+                    Result.Nodes.getNodeAs<clang::VarDecl>("mainVarDecl");
+                    vd && !inFuzzTemplate(vd, SM))
+            {
+                //vd->dump();
+                common_template_var_decls.emplace(vd->getNameAsString(),
+                    vd->getType().getAsString());
             }
         }
 };
@@ -670,7 +709,8 @@ class templateDuplicator : public clang::ASTConsumer
         clang::Rewriter& rw;
 
     public:
-        templateDuplicator(clang::Rewriter& _rw) : rw(_rw)
+        templateDuplicator(clang::Rewriter& _rw) : rw(_rw),
+            logger(templateLocLogger(_rw.getSourceMgr()))
         {
             matcher.addMatcher(
                 clang::ast_matchers::callExpr(
@@ -694,6 +734,18 @@ class templateDuplicator : public clang::ASTConsumer
                 clang::ast_matchers::functionDecl(
                 clang::ast_matchers::isMain())))
                     .bind("mainChild"), &logger);
+
+            matcher.addMatcher(
+                clang::ast_matchers::varDecl(
+                clang::ast_matchers::allOf(
+                    clang::ast_matchers::hasAncestor(
+                    clang::ast_matchers::functionDecl(
+                    clang::ast_matchers::isMain()))
+                    ,
+                    clang::ast_matchers::unless(
+                    clang::ast_matchers::parmVarDecl())
+                ))
+                    .bind("mainVarDecl"), &logger);
 
             for (size_t i = 0; i < meta_input_fuzz_count; ++i)
             {
@@ -847,14 +899,21 @@ class parseFuzzConstructsAction : public clang::ASTFrontendAction
         void
         EndSourceFileAction() override
         {
-            assert(!output_file.empty());
             std::error_code ec;
-            llvm::raw_fd_ostream of_rfo(output_file, ec);
-            rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-                .write(of_rfo);
-            of_rfo.close();
-            rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-                .write(llvm::outs());
+            int fd;
+            llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
+                rewritten_input_file);
+            llvm::raw_fd_ostream rif_rfo(fd, true);
+            rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
+
+            //assert(!output_file.empty());
+            //std::error_code ec;
+            //llvm::raw_fd_ostream of_rfo(output_file, ec);
+            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
+                //.write(of_rfo);
+            //of_rfo.close();
+            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
+                //.write(llvm::outs());
         }
 
         std::unique_ptr<clang::ASTConsumer>
