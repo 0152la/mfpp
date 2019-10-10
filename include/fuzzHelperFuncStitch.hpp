@@ -20,18 +20,20 @@ class helperFnDeclareInfo
         std::vector<clang::Stmt*> body_instrs;
         clang::Stmt* return_body;
         std::vector<const clang::DeclRefExpr*> body_dre;
+        std::vector<const clang::VarDecl*> body_vd;
 
     helperFnDeclareInfo(const clang::FunctionDecl* _fn) : base_func(_fn) {};
 
     std::pair<std::string, std::string>
         getSplitWithReplacements(
             std::map<const clang::ParmVarDecl*, const clang::DeclRefExpr*>,
-            clang::Rewriter&);
+            clang::Rewriter&, size_t);
 };
 
 class helperFnReplaceInfo
 {
     public:
+        size_t index;
         const clang::CallExpr* call_expr;
         const clang::Stmt* base_stmt;
         std::map<const clang::ParmVarDecl*, const clang::DeclRefExpr*>
@@ -97,6 +99,7 @@ class fuzzHelperFuncStitchAction : public clang::ASTFrontendAction
 
     public:
         fuzzHelperFuncStitchAction() {}
+        bool BeginSourceFileAction(clang::CompilerInstance&) override;
         void EndSourceFileAction() override;
         std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(
             clang::CompilerInstance&, llvm::StringRef) override;

@@ -17,8 +17,6 @@
 #include <vector>
 
 #include "clang_interface.hpp"
-//namespace fuzz_input_parse
-//{
 
 static std::map<std::string, clang::APValue*> config_inputs;
 static std::pair<const clang::CallExpr*, const clang::CallExpr*>
@@ -32,7 +30,7 @@ static std::vector<const clang::CallExpr*> meta_test_calls;
 extern size_t meta_input_fuzz_count;
 extern size_t meta_test_rel_count;
 extern llvm::SmallString<256> rewritten_input_file;
-extern std::string output_file;
+extern std::string rewrite_data;
 extern std::string meta_input_var_type;
 extern std::string set_meta_tests_path;
 
@@ -750,6 +748,9 @@ class templateDuplicator : public clang::ASTConsumer
             for (size_t i = 0; i < meta_input_fuzz_count; ++i)
             {
                 std::vector<std::string> input_template_strs;
+                input_template_strs.push_back(
+                    "/* Template initialisation for output var " +
+                    std::to_string(i) + " */\n");
                 std::pair<size_t, std::vector<std::string>> template_str_pair(i, input_template_strs);
                 input_template_copies.insert(template_str_pair);
             }
@@ -859,6 +860,9 @@ class templateDuplicatorAction : public clang::ASTFrontendAction
         void
         EndSourceFileAction() override
         {
+            //llvm::raw_string_ostream rso(rewrite_data);
+            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rso);
+
             std::error_code ec;
             int fd;
             llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
@@ -887,24 +891,29 @@ class parseFuzzConstructsAction : public clang::ASTFrontendAction
     public:
         parseFuzzConstructsAction() {}
 
-        //bool
-        //BeginSourceFileAction(clang::CompilerInstance& ci) override
-        //{
-            //rw.setSourceMgr(ci.getSourceManager(), ci.getLangOpts());
-            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-                //.write(llvm::outs());
-            //return true;
-        //}
+        bool
+        BeginSourceFileAction(clang::CompilerInstance& ci) override
+        {
+            std::cout << "[parseFuzzConstructsAction] Parsing input file ";
+            std::cout << ci.getSourceManager().getFileEntryForID(
+                ci.getSourceManager().getMainFileID())->getName().str()
+                    << std::endl;
+            return true;
+        }
 
         void
         EndSourceFileAction() override
         {
+            //llvm::raw_string_ostream rso(rewrite_data);
+            //rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rso);
+
             std::error_code ec;
             int fd;
             llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
                 rewritten_input_file);
             llvm::raw_fd_ostream rif_rfo(fd, true);
             rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
+            //llvm::sys::fs::remove(rewritten_input_file);
 
             //assert(!output_file.empty());
             //std::error_code ec;

@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include "parseFuzzSpec.hpp"
+#include "parseFuzzerCalls.hpp"
 #include "fuzzHelperFuncStitch.hpp"
 #include "libSpecReader.hpp"
 
@@ -42,6 +43,7 @@ static llvm::cl::list<std::string> LibInputList("lib-list",
 size_t meta_input_fuzz_count = 5;
 size_t meta_test_rel_count = 7;
 llvm::SmallString<256> rewritten_input_file;
+std::string rewrite_data;
 std::string output_file = "";
 std::string meta_input_var_type = "";
 std::string set_meta_tests_path = "";
@@ -164,13 +166,40 @@ main(int argc, char const **argv)
     fuzzTool.run(clang::tooling::newFrontendActionFactory<fuzzHelperLoggerAction>().get());
     fuzzTool.run(clang::tooling::newFrontendActionFactory<templateDuplicatorAction>().get());
 
-    clang::tooling::ClangTool fuzz2Tool(op.getCompilations(),
-        std::vector<std::string>{rewritten_input_file.str()});
-    fuzz2Tool.run(clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>().get());
+    std::vector<std::unique_ptr<clang::tooling::FrontendActionFactory>> action_list;
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>());
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<fuzzHelperFuncStitchAction>());
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<parseFuzzerCallsAction>());
 
-    clang::tooling::ClangTool fuzz3Tool(op.getCompilations(),
-        std::vector<std::string>{rewritten_input_file.str()});
-    fuzz3Tool.run(clang::tooling::newFrontendActionFactory<fuzzHelperFuncStitchAction>().get());
+    for ( std::unique_ptr<clang::tooling::FrontendActionFactory>& fa : action_list)
+    {
+        clang::tooling::ClangTool processTool(op.getCompilations(),
+            std::vector<std::string>{rewritten_input_file.str()});
+        processTool.run(fa.get());
+    }
+
+
+    //clang::tooling::ClangTool fuzz2Tool(op.getCompilations(),
+        //std::vector<std::string>{rewritten_input_file.str()});
+    //fuzz2Tool.run(clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>().get());
+    ////fuzzTool.mapVirtualFile(op.getSourcePathList().front(), rewrite_data);
+    ////std::cout << rewrite_data << std::endl;
+    ////fuzzTool.run(clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>().get());
+
+    //clang::tooling::ClangTool fuzz3Tool(op.getCompilations(),
+        //std::vector<std::string>{rewritten_input_file.str()});
+    //fuzz3Tool.run(clang::tooling::newFrontendActionFactory<fuzzHelperFuncStitchAction>().get());
+
+    //clang::tooling::ClangTool fuzz4Tool(op.getCompilations(),
+        //std::vector<std::string>{rewritten_input_file.str()});
+    //fuzz4Tool.run(clang::tooling::newFrontendActionFactory<parseFuzzerCallsAction>().get());
+    ////fuzzTool.mapVirtualFile(op.getSourcePathList().front(), rewrite_data);
+    ////std::cout << rewrite_data << std::endl;
+    ////fuzzTool.run(clang::tooling::newFrontendActionFactory<fuzzHelperFuncStitchAction>().get());
+
 
     //fuzz2Tool.run(clang::tooling::newFrontendActionFactory<cleanFuzzTest>().get());
     //

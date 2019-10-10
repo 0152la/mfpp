@@ -3,7 +3,10 @@
 static std::map<const clang::FunctionDecl*, helperFnDeclareInfo> helper_funcs_splits;
 static std::vector<helperFnReplaceInfo> stitch_exprs;
 
+static size_t replace_index = 0;
 static const clang::CompoundStmt* main_child = nullptr;
+
+extern std::string output_file;
 extern llvm::SmallString<256> rewritten_input_file;
 
 const clang::ast_type_traits::DynTypedNode
@@ -63,18 +66,30 @@ addNewSplit(const clang::FunctionDecl* fd)
 std::pair<std::string, std::string>
 helperFnDeclareInfo::getSplitWithReplacements(
     std::map<const clang::ParmVarDecl*, const clang::DeclRefExpr*> concrete_vars,
-    clang::Rewriter& rw)
+    clang::Rewriter& rw, size_t index)
 {
     for (const clang::DeclRefExpr* dre : this->body_dre)
     {
-        const clang::ParmVarDecl* pvd =
+        if (const clang::ParmVarDecl* pvd =
             llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl());
-        if (pvd && concrete_vars.count(pvd))
+            pvd && concrete_vars.count(pvd))
         {
             rw.ReplaceText(dre->getSourceRange(),
                 concrete_vars.at(pvd)->getDecl()->getNameAsString());
         }
+        else if (const clang::VarDecl* vd =
+                llvm::dyn_cast<clang::VarDecl>(dre->getDecl()))
+        {
+            rw.InsertText(dre->getLocation().getLocWithOffset(
+                vd->getName().size()), "_" + std::to_string(index));
+        }
     }
+    for (const clang::VarDecl* vd : this->body_vd)
+    {
+        rw.InsertText(vd->getLocation().getLocWithOffset(vd->getName().size()),
+            "_" + std::to_string(index));
+    }
+
     std::string rewritten_body = std::accumulate(
         this->body_instrs.begin(), this->body_instrs.end(),
         std::string(),
@@ -83,8 +98,10 @@ helperFnDeclareInfo::getSplitWithReplacements(
             const std::string indent = clang::Lexer::getIndentationForLine(
                 s->getBeginLoc(), rw.getSourceMgr()).str();
             return acc + '\n' + indent +
-                rw.getRewrittenText(s->getSourceRange());
+                rw.getRewrittenText(s->getSourceRange()) + ';';
         });
+    // TODO bug when rewritting the return body with a single DeclRefExpr;
+    // the rewrite returned does not contain the added index identifier
     std::string rewritten_return =
         rw.getRewrittenText(this->return_body->getSourceRange());
     return std::make_pair(rewritten_body, rewritten_return);
@@ -93,6 +110,7 @@ helperFnDeclareInfo::getSplitWithReplacements(
 helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
     const clang::Stmt* _base) : call_expr(_ce), base_stmt(_base)
 {
+    this->index = replace_index++;
     const clang::FunctionDecl* ce_callee =
         llvm::dyn_cast<clang::FunctionDecl>(_ce->getCalleeDecl());
     assert(ce_callee);
@@ -130,9 +148,11 @@ fuzzHelperFuncReplacer::makeReplace(
                     this->ctx.getLangOpts());
         std::pair<std::string, std::string> replace_strs =
             helper_funcs_splits.at(ce_callee).getSplitWithReplacements(
-                info.concrete_params, tmp_rw);
+                info.concrete_params, tmp_rw, info.index);
 
-        rw.InsertText(info.base_stmt->getBeginLoc(), replace_strs.first + '\n');
+        rw.InsertText(info.base_stmt->getBeginLoc(), replace_strs.first + '\n' +
+            clang::Lexer::getIndentationForLine(info.base_stmt->getBeginLoc(),
+                rw.getSourceMgr()).str());
         rw.ReplaceText(info.call_expr->getSourceRange(), replace_strs.second);
     }
 }
@@ -158,10 +178,19 @@ fuzzHelperFuncLocator::run(const clang::ast_matchers::MatchFinder::MatchResult& 
         {
             addNewSplit(fd);
         }
-        const clang::DeclRefExpr* dre =
-             Result.Nodes.getNodeAs<clang::DeclRefExpr>("helperFuncDRE");
-        assert(dre);
-        helper_funcs_splits.at(fd).body_dre.push_back(dre);
+        if (const clang::DeclRefExpr* dre =
+                Result.Nodes.getNodeAs<clang::DeclRefExpr>("helperFuncDRE"))
+        {
+            helper_funcs_splits.at(fd).body_dre.push_back(dre);
+            return;
+        }
+        else if (const clang::VarDecl* vd =
+                Result.Nodes.getNodeAs<clang::VarDecl>("helperFuncVD"))
+        {
+            helper_funcs_splits.at(fd).body_vd.push_back(vd);
+            return;
+        }
+        assert(false);
     }
 }
 
@@ -177,6 +206,17 @@ fuzzHelperFuncStitch::fuzzHelperFuncStitch(clang::Rewriter& _rw,
         clang::ast_matchers::hasName(
         "fuzz::lib_helper_funcs"))))))
             .bind("helperFuncInvoke"), &locator);
+
+    matcher.addMatcher(
+        clang::ast_matchers::varDecl(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::functionDecl(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::namespaceDecl(
+        clang::ast_matchers::hasName(
+        "fuzz::lib_helper_funcs"))))
+            .bind("helperFunc")))
+            .bind("helperFuncVD"), &locator);
 
     matcher.addMatcher(
         clang::ast_matchers::declRefExpr(
@@ -204,18 +244,28 @@ fuzzHelperFuncStitch::HandleTranslationUnit(clang::ASTContext& ctx)
     replacer.makeReplace(stitch_exprs);
 }
 
+bool
+fuzzHelperFuncStitchAction::BeginSourceFileAction(clang::CompilerInstance& ci)
+{
+    std::cout << "[fuzzHelperFuncStitchAction] Parsing input file ";
+    std::cout << ci.getSourceManager().getFileEntryForID(
+        ci.getSourceManager().getMainFileID())->getName().str() << std::endl;
+    return true;
+}
+
 void
 fuzzHelperFuncStitchAction::EndSourceFileAction()
 {
-    //std::error_code ec;
-    //int fd;
-    //llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
-        //rewritten_input_file);
-    //llvm::raw_fd_ostream rif_rfo(fd, true);
-    //rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
-    //
-    rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-        .write(llvm::outs());
+    std::error_code ec;
+    int fd;
+    llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
+        rewritten_input_file);
+    llvm::raw_fd_ostream rif_rfo(fd, true);
+    rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
+    //llvm::sys::fs::remove(rewritten_input_file);
+
+    //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
+        //.write(llvm::outs());
 }
 
 std::unique_ptr<clang::ASTConsumer>

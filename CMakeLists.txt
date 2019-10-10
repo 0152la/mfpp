@@ -40,9 +40,11 @@ add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
     ${SRC_DIR}/fuzzHelperFuncStitch.cpp
+    ${SRC_DIR}/parseFuzzerCalls.cpp
     ${INCLUDE_DIR}/parseFuzzSpec.hpp
     ${INCLUDE_DIR}/libSpecReader.hpp
     ${INCLUDE_DIR}/fuzzHelperFuncStitch.hpp
+    ${INCLUDE_DIR}/parseFuzzerCalls.hpp
     )
 
 target_link_libraries(mrParser PRIVATE
@@ -52,7 +54,6 @@ target_link_libraries(mrParser PRIVATE
     clangBasic
     clangDriver
     clangFrontend
-    #clangSerialization
     clangTooling
     fmt
     yaml-cpp
