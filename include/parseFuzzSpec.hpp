@@ -857,6 +857,17 @@ class templateDuplicatorAction : public clang::ASTFrontendAction
         clang::Rewriter rw;
 
     public:
+
+        bool
+        BeginSourceFileAction(clang::CompilerInstance& ci) override
+        {
+            std::cout << "[templateDuplicatorAction] Parsing input file ";
+            std::cout << ci.getSourceManager().getFileEntryForID(
+                ci.getSourceManager().getMainFileID())->getName().str()
+                << std::endl;
+            return true;
+        };
+
         void
         EndSourceFileAction() override
         {

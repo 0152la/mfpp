@@ -65,7 +65,7 @@ addNewSplit(const clang::FunctionDecl* fd)
 
 std::pair<std::string, std::string>
 helperFnDeclareInfo::getSplitWithReplacements(
-    std::map<const clang::ParmVarDecl*, const clang::DeclRefExpr*> concrete_vars,
+    std::map<const clang::ParmVarDecl*, const clang::Expr*> concrete_vars,
     clang::Rewriter& rw, size_t index)
 {
     for (const clang::DeclRefExpr* dre : this->body_dre)
@@ -74,8 +74,18 @@ helperFnDeclareInfo::getSplitWithReplacements(
             llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl());
             pvd && concrete_vars.count(pvd))
         {
-            rw.ReplaceText(dre->getSourceRange(),
-                concrete_vars.at(pvd)->getDecl()->getNameAsString());
+            std::string replace_text;
+            if (const clang::DeclRefExpr* dre =
+                    llvm::dyn_cast<clang::DeclRefExpr>(concrete_vars.at(pvd)))
+            {
+                replace_text = dre->getDecl()->getNameAsString();
+            }
+            else if (const clang::IntegerLiteral* il =
+                    llvm::dyn_cast<clang::IntegerLiteral>(concrete_vars.at(pvd)))
+            {
+                replace_text = std::to_string(il->getValue().getSExtValue());
+            }
+            rw.ReplaceText(dre->getSourceRange(), replace_text);
         }
         else if (const clang::VarDecl* vd =
                 llvm::dyn_cast<clang::VarDecl>(dre->getDecl()))
@@ -126,9 +136,18 @@ helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
             assert(std::next(s->child_begin()) == s->child_end());
             s = *(s->child_begin());
         }
-        const clang::DeclRefExpr* dre = llvm::dyn_cast<clang::DeclRefExpr>(s);
-        assert(dre);
-        this->concrete_params.insert(std::make_pair(*(helper_args_it), dre));
+        if (const clang::DeclRefExpr* dre = llvm::dyn_cast<clang::DeclRefExpr>(s))
+        {
+            this->concrete_params.insert(std::make_pair(*(helper_args_it), dre));
+        }
+        else if (const clang::IntegerLiteral* il = llvm::dyn_cast<clang::IntegerLiteral>(s))
+        {
+            this->concrete_params.insert(std::make_pair(*(helper_args_it), il));
+        }
+        else
+        {
+            assert(false);
+        }
 
         helper_args_it++;
         call_args_it++;

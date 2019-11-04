@@ -26,7 +26,7 @@ class helperFnDeclareInfo
 
     std::pair<std::string, std::string>
         getSplitWithReplacements(
-            std::map<const clang::ParmVarDecl*, const clang::DeclRefExpr*>,
+            std::map<const clang::ParmVarDecl*, const clang::Expr*>,
             clang::Rewriter&, size_t);
 };
 
@@ -36,7 +36,7 @@ class helperFnReplaceInfo
         size_t index;
         const clang::CallExpr* call_expr;
         const clang::Stmt* base_stmt;
-        std::map<const clang::ParmVarDecl*, const clang::DeclRefExpr*>
+        std::map<const clang::ParmVarDecl*, const clang::Expr*>
             concrete_params;
 
         helperFnReplaceInfo(const clang::CallExpr*, const clang::Stmt*);
