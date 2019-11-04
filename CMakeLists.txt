@@ -1,6 +1,5 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.12)
 project(MetaLibClangVer)
-set(CMAKE_BUILD_TYPE Debug)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_COMPILER clang++)
 #set(CMAKE_CXX_COMPILER g++)
@@ -29,14 +28,9 @@ if (NOT LLVM_ENABLE_RTTI)
     set(CMAKE_CXX_FLAGS "-fno-rtti")
 endif()
 
-#message(STATUS "${LLVM_DIR}")
-#list(APPEND CMAKE_MODULE_PATH ${LLVM_DIR})
-#include(AddLLVM)
-#add_llvm_library(pfn MODULE ${SRC_DIR}/PrintFunctionNames.cpp PLUGIN_TOOL clang)
+add_subdirectory("./third_party/library-metamorphic-testing")
 
-#add_llvm_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
-#llvm_config(mrParser core)
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
     ${SRC_DIR}/fuzzHelperFuncStitch.cpp
