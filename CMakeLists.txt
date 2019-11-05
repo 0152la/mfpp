@@ -28,8 +28,6 @@ if (NOT LLVM_ENABLE_RTTI)
     set(CMAKE_CXX_FLAGS "-fno-rtti")
 endif()
 
-add_subdirectory("./third_party/library-metamorphic-testing")
-
 add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
@@ -49,8 +47,6 @@ target_link_libraries(mrParser PRIVATE
     clangDriver
     clangFrontend
     clangTooling
-    fmt
-    yaml-cpp
     metalib_fuzz
     )
 
@@ -65,7 +61,5 @@ target_link_libraries(mtFuzzer
     clangSerialization
     clangStaticAnalyzerFrontend
     clangTooling
-    fmt
-    yaml-cpp
     metalib_fuzz
     )
