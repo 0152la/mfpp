@@ -1,8 +1,5 @@
 # Folders
 build
-include_local
-include_clang
-include_libfuzz
 libs
 input
 output
