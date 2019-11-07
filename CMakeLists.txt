@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(MetaLibClangVer)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_COMPILER clang++)
 #set(CMAKE_CXX_COMPILER g++)
 
 set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
@@ -18,11 +17,13 @@ find_package(Clang REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
 
 include_directories(${LLVM_INCLUDE_DIRS})
+include_directories(${CLANG_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
 if (NOT LLVM_ENABLE_RTTI)
     message(STATUS "LLVM compiled with RTTI disabled...")
-    set(CMAKE_CXX_FLAGS "-fno-rtti")
+    #set(CMAKE_CXX_FLAGS "-fno-rtti")
+    add_compile_options("-fno-rtti")
 endif()
 
 #add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
