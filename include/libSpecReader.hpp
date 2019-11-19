@@ -268,8 +268,8 @@ class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCal
                 if (FD->getAttr<clang::AnnotateAttr>()->getAnnotation()
                         .equals(exposingAttributeStr))
                 {
-                    FD->dump();
-                    FD->getReturnType()->dump();
+                    //FD->dump();
+                    //FD->getReturnType()->dump();
                     exposed_funcs.emplace(FD->getQualifiedNameAsString(),
                         FD->getReturnType(), FD->parameters(), FD->isStatic());
                 }
@@ -286,20 +286,16 @@ class libSpecReader : public clang::ASTConsumer
     public:
         libSpecReader()
         {
-            std::cout << "Start constructor" << std::endl;
             matcher.addMatcher(
                 clang::ast_matchers::decl(
                 clang::ast_matchers::hasAttr(
                 clang::attr::Annotate))
                     .bind("exposedDecl"), &printer);
-            std::cout << "End constructor" << std::endl;
         };
 
         void HandleTranslationUnit(clang::ASTContext& ctx) override
         {
-            std::cout << "Start match" << std::endl;
             matcher.matchAST(ctx);
-            std::cout << "End match" << std::endl;
         };
 };
 
@@ -324,7 +320,6 @@ class libSpecReaderAction : public clang::ASTFrontendAction
         std::unique_ptr<clang::ASTConsumer>
         CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override
         {
-            std::cout << "Start action" << std::endl;
             return std::make_unique<libSpecReader>();
         }
 };

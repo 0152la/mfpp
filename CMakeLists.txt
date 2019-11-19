@@ -11,7 +11,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 include_directories("${INCLUDE_DIR}")
 include_directories("${CMAKE_SOURCE_DIR}/third_party/library-metamorphic-testing/include")
 link_directories("${LIB_DIR}")
-link_directories("/usr/local/lib/")
 
 find_package(Clang REQUIRED)
 find_package(LLVM REQUIRED CONFIG)
@@ -25,6 +24,8 @@ if (NOT LLVM_ENABLE_RTTI)
     #set(CMAKE_CXX_FLAGS "-fno-rtti")
     add_compile_options("-fno-rtti")
 endif()
+
+#add_compile_options("-stdlib=libc++")
 
 #add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 add_executable(mtFuzzer
