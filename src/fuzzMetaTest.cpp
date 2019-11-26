@@ -67,22 +67,22 @@ main(int argc, char const **argv)
     assert(!set_meta_tests_path.empty());
     output_file = TestOutput;
 
-    //libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get());
+    libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get());
     fuzzTool.run(clang::tooling::newFrontendActionFactory<fuzzHelperLoggerAction>().get());
-    //fuzzTool.run(clang::tooling::newFrontendActionFactory<templateDuplicatorAction>().get());
+    fuzzTool.run(clang::tooling::newFrontendActionFactory<templateDuplicatorAction>().get());
 
-    //std::vector<std::unique_ptr<clang::tooling::FrontendActionFactory>> action_list;
-    //action_list.emplace_back(
-        //clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>());
-    //action_list.emplace_back(
-        //clang::tooling::newFrontendActionFactory<fuzzHelperFuncStitchAction>());
-    //action_list.emplace_back(
-        //clang::tooling::newFrontendActionFactory<parseFuzzerCallsAction>());
+    std::vector<std::unique_ptr<clang::tooling::FrontendActionFactory>> action_list;
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>());
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<fuzzHelperFuncStitchAction>());
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<parseFuzzerCallsAction>());
 
-    //for ( std::unique_ptr<clang::tooling::FrontendActionFactory>& fa : action_list)
-    //{
-        //clang::tooling::ClangTool processTool(op.getCompilations(),
-            //std::vector<std::string>{rewritten_input_file.str()});
-        //processTool.run(fa.get());
-    //}
+    for ( std::unique_ptr<clang::tooling::FrontendActionFactory>& fa : action_list)
+    {
+        clang::tooling::ClangTool processTool(op.getCompilations(),
+            std::vector<std::string>{rewritten_input_file.str()});
+        processTool.run(fa.get());
+    }
 }
