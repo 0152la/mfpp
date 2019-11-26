@@ -23,6 +23,9 @@ class fuzzerCallsReplacer
             ctx(_ctx), rw(_rw) {}
 
         void makeReplace(std::vector<const clang::CallExpr*>&) const;
+
+    private:
+        int getIntFromClangExpr(clang::CallExpr::const_arg_iterator) const;
 };
 
 class fuzzerCallsLocator: public clang::ast_matchers::MatchFinder::MatchCallback

@@ -831,6 +831,7 @@ class templateDuplicator : public clang::ASTConsumer
                 rw.RemoveText(stmt_redecl.base_stmt->getSourceRange());
             }
 
+            assert(fuzz_template_bounds.second);
             for (std::pair<size_t, std::vector<std::string>> fuzzed_template_copies :
                     input_template_copies)
             {

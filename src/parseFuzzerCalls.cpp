@@ -4,6 +4,33 @@ std::vector<const clang::CallExpr*> fuzzer_calls;
 
 extern std::string output_file;
 
+int
+fuzzerCallsReplacer::getIntFromClangExpr(
+    clang::CallExpr::const_arg_iterator ce_it) const
+{
+    const clang::IntegerLiteral* int_lit;
+    const clang::UnaryOperator* uo =
+            llvm::dyn_cast<const clang::UnaryOperator>(*ce_it);
+    if (uo)
+    {
+        assert(uo->getOpcode() == clang::UnaryOperatorKind::UO_Minus);
+        int_lit =
+            llvm::dyn_cast<clang::IntegerLiteral>(uo->getSubExpr());
+    }
+    else
+    {
+        int_lit = llvm::dyn_cast<clang::IntegerLiteral>(*ce_it);
+    }
+    assert(int_lit);
+
+    int int_val = int_lit->getValue().getSExtValue();
+    if (uo)
+    {
+        int_val = -int_val;
+    }
+    return int_val;
+}
+
 void
 fuzzerCallsReplacer::makeReplace(
     std::vector<const clang::CallExpr*>& replace_exprs) const
@@ -24,15 +51,15 @@ fuzzerCallsReplacer::makeReplace(
                 clang::CallExpr::const_arg_iterator it = ce->arg_begin();
                 if (it != ce->arg_end())
                 {
-                    min = llvm::dyn_cast<clang::IntegerLiteral>(*it)
-                        ->getValue().getSExtValue();
+                    min = fuzzerCallsReplacer::getIntFromClangExpr(it);
                     std::advance(it, 1);
                     if (it != ce->arg_end())
                     {
-                        max = llvm::dyn_cast<clang::IntegerLiteral>(*it)
-                            ->getValue().getSExtValue();
-                        assert(std::next(it) == ce->arg_end());
+                        max = fuzzerCallsReplacer::getIntFromClangExpr(it);
+                        //max = llvm::dyn_cast<clang::IntegerLiteral>(*it)
+                            //->getValue().getSExtValue();
                     }
+                    assert(std::next(it) == ce->arg_end());
                 }
 
                 replace_val = std::to_string(fuzzer::clang::generateRand(min, max));

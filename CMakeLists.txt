@@ -1,12 +1,10 @@
 cmake_minimum_required(VERSION 3.13)
 project(MetaLibClangVer)
 set(CMAKE_CXX_STANDARD 17)
-#set(CMAKE_CXX_COMPILER g++)
 
 set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(LIB_DIR ${CMAKE_SOURCE_DIR}/libs)
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories("${INCLUDE_DIR}")
 include_directories("${CMAKE_SOURCE_DIR}/third_party/library-metamorphic-testing/include")
@@ -21,13 +19,9 @@ add_definitions(${LLVM_DEFINITIONS})
 
 if (NOT LLVM_ENABLE_RTTI)
     message(STATUS "LLVM compiled with RTTI disabled...")
-    #set(CMAKE_CXX_FLAGS "-fno-rtti")
     add_compile_options("-fno-rtti")
 endif()
 
-#add_compile_options("-stdlib=libc++")
-
-#add_executable(mrParser ${SRC_DIR}/parseMetaRels.cpp)
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
     ${SRC_DIR}/fuzzHelperFuncStitch.cpp
@@ -38,16 +32,8 @@ add_executable(mtFuzzer
     ${INCLUDE_DIR}/parseFuzzerCalls.hpp
     )
 
-#target_link_libraries(mrParser PRIVATE
-#    LLVM
-#    clangAST
-#    clangASTMatchers
-#    clangBasic
-#    clangDriver
-#    clangFrontend
-#    clangTooling
-#    metalib_fuzz
-#    )
+#target_compile_options(mtFuzzer PUBLIC -stdlib=libc++)
+#target_link_options(mtFuzzer PUBLIC -stdlib=libc++ -lc++abi)
 
 target_link_libraries(mtFuzzer
     LLVM
