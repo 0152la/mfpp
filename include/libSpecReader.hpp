@@ -107,13 +107,61 @@ class ExposedFuncDecl
         }
 };
 
+class ExposedTemplateType
+{
+    public:
+        std::string base_type;
+        clang::TemplateParameterList* template_params;
+
+        ExposedTemplateType(std::string _base_type, clang::TemplateParameterList* _tpl) :
+            base_type(_base_type), template_params(_tpl) {};
+
+        std::vector<std::string>
+        getParamListStr()
+        {
+            std::vector<std::string> template_params_str;
+            std::transform(template_params->begin(), template_params->end(),
+                std::back_inserter(template_params_str),
+                [](clang::NamedDecl* ND)
+                {
+                    return ND->getQualifiedNameAsString();
+                });
+            return template_params_str;
+        }
+
+        static bool
+        compare(const ExposedTemplateType& lhs, const ExposedTemplateType& rhs)
+        {
+            if (int base_type_cmp = (lhs.base_type.compare(rhs.base_type)))
+            {
+                return base_type_cmp < 0;
+            }
+            if (lhs.template_params->size() != rhs.template_params->size())
+            {
+                return lhs.template_params->size() < rhs.template_params->size();
+            }
+            for (size_t i = 0; i < lhs.template_params->size(); ++i)
+            {
+                if (int param_cmp =
+                        (lhs.template_params->getParam(i) !=
+                            rhs.template_params->getParam(i)))
+                {
+                    return param_cmp < 0;
+                }
+            }
+            return false;
+        }
+};
+
 const llvm::StringRef exposingAttributeStr("expose");
 const std::string exposingSpecialAttributeStr = "expose_special";
 std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
     exposed_funcs(&ExposedFuncDecl::compare);
+std::set<ExposedTemplateType, decltype(&ExposedTemplateType::compare)>
+    exposed_template_types(&ExposedTemplateType::compare);
 
 void
-addExposedFuncs()
+addExposedFuncs(const clang::PrintingPolicy& print_policy)
 {
     for (ExposedFuncDecl efd : exposed_funcs)
     {
@@ -123,19 +171,30 @@ addExposedFuncs()
             {
                 return param->getOriginalType().getAsString();
             });
-        if (efd.enclosing_class)
-        {
-            fuzzer::clang::addLibFunc(efd.name,
-                efd.enclosing_class->getQualifiedNameAsString(),
-                efd.ret_typ.getAsString(), str_params, efd.statik,
-                efd.ctor);
-        }
-        else
-        {
-            fuzzer::clang::addLibFunc(efd.name, "",
-                efd.ret_typ.getAsString(), str_params, efd.statik,
-                efd.ctor);
-        }
+        const clang::BuiltinType* BT =
+                llvm::dyn_cast<clang::BuiltinType>(efd.ret_typ);
+        std::string return_type_str = BT
+            ? BT->getName(print_policy).str()
+            : efd.ret_typ.getAsString();
+        std::string enclosing_class_str = efd.enclosing_class
+            ? efd.enclosing_class->getQualifiedNameAsString()
+            : "";
+
+        fuzzer::clang::addLibFunc(efd.name, enclosing_class_str,
+            return_type_str, str_params, efd.statik, efd.ctor);
+        //if (efd.enclosing_class)
+        //{
+            //fuzzer::clang::addLibFunc(efd.name,
+                //efd.enclosing_class->getQualifiedNameAsString(),
+                //efd.ret_typ.getAsString(), str_params, efd.statik,
+                //efd.ctor);
+        //}
+        //else
+        //{
+            //fuzzer::clang::addLibFunc(efd.name, "",
+                //efd.ret_typ.getAsString(), str_params, efd.statik,
+                //efd.ctor);
+        //}
     }
     exposed_funcs.clear();
 }
@@ -186,6 +245,9 @@ class fuzzHelperLogger : public clang::ASTConsumer
 
 class fuzzHelperLoggerAction : public clang::ASTFrontendAction
 {
+    private:
+        const clang::PrintingPolicy* print_policy;
+
     public:
         fuzzHelperLoggerAction() {};
 
@@ -200,11 +262,13 @@ class fuzzHelperLoggerAction : public clang::ASTFrontendAction
         };
 
         void
-        EndSourceFileAction() override { addExposedFuncs(); };
+        EndSourceFileAction() override { addExposedFuncs(*this->print_policy); };
 
         std::unique_ptr<clang::ASTConsumer>
         CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override
         {
+            assert(CI.hasASTContext());
+            this->print_policy = &CI.getASTContext().getPrintingPolicy();
             return std::make_unique<fuzzHelperLogger>();
         }
 };
@@ -240,6 +304,13 @@ class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCal
                         .equals(exposingAttributeStr))
                 {
                     //MD->dump();
+                    //MD->getReturnType().dump();
+                    //if (const clang::BuiltinType* BT = llvm::dyn_cast<clang::BuiltinType>(MD->getReturnType()))
+                    //{
+                        //BT->desugar().dump();
+                        //std::cout << BT->getName(this->PP).str() << '\n';
+                        //std::cout << BT->getNameAsCString(this->PP) << '\n';
+                    //}
                     exposed_funcs.emplace(MD->getNameAsString(), MD->getParent(),
                         MD->getReturnType(), MD->parameters(), MD->isStatic());
                 }
@@ -274,6 +345,42 @@ class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCal
                         FD->getReturnType(), FD->parameters(), FD->isStatic());
                 }
             }
+            else if (const clang::TypeAliasDecl* TAD =
+                    Result.Nodes.getNodeAs<clang::TypeAliasDecl>("exposedDecl"))
+            {
+                if (TAD->getAttr<clang::AnnotateAttr>()->getAnnotation()
+                        .equals(exposingAttributeStr))
+                {
+                    //TAD->dump();
+                    //TAD->getDescribedAliasTemplate()->dump();
+                    if (clang::TypeAliasTemplateDecl* TATD =
+                            TAD->getDescribedAliasTemplate())
+                    {
+                        fuzzer::clang::addLibTemplateType(
+                            TAD->getQualifiedNameAsString(),
+                            TATD->getTemplateParameters()->size());
+                        //exposed_template_types.emplace(
+                            //TAD->getQualifiedNameAsString(),
+                            //TATD->getTemplateParameters()->size());
+
+                        //std::vector<std::string> template_str_list;
+                        //std::transform(TATD->getTemplateParameters()->begin(),
+                            //TATD->getTemplateParameters()->end(),
+                            //std::back_inserter(template_str_list),
+                            //[](clang::NamedDecl* ND)
+                            //{
+                                //return ND->getQualifiedNameAsString();
+                            //});
+                        //fuzzer::clang::addLibExposedTemplateType(
+                            //TAD->getQualifiedNameAsString(),
+                            //template_str_list);
+                    }
+                    else
+                    {
+                        fuzzer::clang::addLibType(TAD->getQualifiedNameAsString());
+                    }
+                }
+            }
         }
 };
 
@@ -301,6 +408,9 @@ class libSpecReader : public clang::ASTConsumer
 
 class libSpecReaderAction : public clang::ASTFrontendAction
 {
+    private:
+        const clang::PrintingPolicy* print_policy;
+
     public:
         libSpecReaderAction() {};
 
@@ -315,11 +425,13 @@ class libSpecReaderAction : public clang::ASTFrontendAction
         };
 
         void
-        EndSourceFileAction() override { addExposedFuncs(); };
+        EndSourceFileAction() override { addExposedFuncs(*this->print_policy); };
 
         std::unique_ptr<clang::ASTConsumer>
         CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override
         {
+            assert(CI.hasASTContext());
+            this->print_policy = &CI.getASTContext().getPrintingPolicy();
             return std::make_unique<libSpecReader>();
         }
 };
