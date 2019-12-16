@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import datetime
 import logging
 import os
 import random
@@ -80,7 +81,7 @@ if __name__ == '__main__':
     log_console.setLevel(log_level)
     log_console.debug("Debug mode set")
 
-    log_console.debug("Setting seed {args.seed}")
+    log_console.debug(f"Setting seed {args.seed}")
     random.seed(args.seed)
 
     log_console.debug(f"Parsing YAML config file {args.config}")
