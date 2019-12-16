@@ -45,6 +45,7 @@ def exec_cmd(name, cmd, test_id):
     out, err = cmd_proc.communicate()
     log_runtime.info(f"{name} return code: {cmd_proc.returncode}")
     if cmd_proc.returncode != 0 or args.always_log_out:
+        log_runtime.info(f"FAIL {name} command")
         log_runtime.debug(f"STDOUT:\n{out}")
         log_runtime.debug(f"STDERR:\n{err}")
     if cmd_proc.returncode != 0:
@@ -120,7 +121,8 @@ if __name__ == '__main__':
         test_count += 1
         if not args.debug:
             log_console_handler.terminator = '\r'
-        log_console.debug(f"=== START test count {test_count} of {args.test_count}")
+        curr_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_console.debug(f"[{curr_time}] START test count {test_count} of {args.test_count}")
 
         gen_seed = random.randrange(sys.maxsize)
         log_console.debug(f"Generating test with seed {gen_seed}")
