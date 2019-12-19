@@ -381,6 +381,19 @@ class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCal
                     }
                 }
             }
+            else if (const clang::TypedefDecl* TDD =
+                    Result.Nodes.getNodeAs<clang::TypedefDecl>("exposedDecl"))
+            {
+                if (TDD->getUnderlyingType().getAsString().back() == '*')
+                {
+                    fuzzer::clang::addLibType(TDD->getQualifiedNameAsString(),
+                        true, false);
+                }
+                else
+                {
+                    fuzzer::clang::addLibType(TDD->getQualifiedNameAsString());
+                }
+            }
         }
 };
 
