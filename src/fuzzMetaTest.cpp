@@ -38,7 +38,7 @@ static llvm::cl::list<std::string> LibInputList("lib-list",
     llvm::cl::desc("Comma-separated list of files to expose library functionality."),
     llvm::cl::CommaSeparated, llvm::cl::cat(tmpOC));
 
-size_t meta_input_fuzz_count = 5;
+size_t meta_input_fuzz_count = 3;
 size_t meta_test_rel_count = 7;
 llvm::SmallString<256> rewritten_input_file;
 std::string rewrite_data;

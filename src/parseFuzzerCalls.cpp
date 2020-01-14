@@ -69,7 +69,7 @@ fuzzerCallsReplacer::makeReplace(
             rw.ReplaceText(ce->getSourceRange(), replace_val);
             continue;
         }
-        assert(false);
+        //assert(false);
     }
 }
 

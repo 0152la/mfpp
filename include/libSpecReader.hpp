@@ -26,18 +26,19 @@ class ExposedFuncDecl
         llvm::ArrayRef<clang::ParmVarDecl*> params;
         bool statik;
         bool ctor;
+        bool special;
 
         ExposedFuncDecl(llvm::StringRef _name, const clang::CXXRecordDecl* _ec,
             clang::QualType _ret_typ,
             llvm::ArrayRef<clang::ParmVarDecl*> _params, bool _statik = false,
-            bool _ctor = false) :
+            bool _ctor = false, bool _special = false) :
             name(_name), enclosing_class(_ec), ret_typ(_ret_typ),
-            params(_params), statik(_statik), ctor(_ctor) {};
+            params(_params), statik(_statik), ctor(_ctor), special(_special) {};
         ExposedFuncDecl(llvm::StringRef _name, clang::QualType _ret_typ,
             llvm::ArrayRef<clang::ParmVarDecl*> _params, bool _statik = false,
-            bool _ctor = false) :
+            bool _ctor = false, bool _special = false) :
             name(_name), ret_typ(_ret_typ), params(_params), statik(_statik),
-            ctor(_ctor) {};
+            ctor(_ctor), special(_special) {};
 
         std::string
         getSignature() const
@@ -154,7 +155,7 @@ class ExposedTemplateType
 };
 
 const llvm::StringRef exposingAttributeStr("expose");
-const std::string exposingSpecialAttributeStr = "expose_special";
+const llvm::StringRef exposingSpecialAttributeStr("expose_special");
 std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
     exposed_funcs(&ExposedFuncDecl::compare);
 std::set<ExposedTemplateType, decltype(&ExposedTemplateType::compare)>
@@ -181,7 +182,7 @@ addExposedFuncs(const clang::PrintingPolicy& print_policy)
             : "";
 
         fuzzer::clang::addLibFunc(efd.name, enclosing_class_str,
-            return_type_str, str_params, efd.statik, efd.ctor);
+            return_type_str, str_params, efd.statik, efd.ctor, efd.special);
         //if (efd.enclosing_class)
         //{
             //fuzzer::clang::addLibFunc(efd.name,
@@ -214,7 +215,7 @@ class fuzzHelperFuncLogger : public clang::ast_matchers::MatchFinder::MatchCallb
             {
                 exposed_funcs.emplace(FD->getQualifiedNameAsString(),
                     FD->getReturnType(), FD->parameters(), FD->isStatic(),
-                    FD->getNameAsString().find("ctor") == 0);
+                    FD->getNameAsString().find("ctor") == 0, false);
             }
         }
 };
@@ -283,107 +284,96 @@ class exposedFuncDeclMatcher : public clang::ast_matchers::MatchFinder::MatchCal
         virtual void
         run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         {
+            const clang::Decl* D = Result.Nodes.getNodeAs<clang::Decl>("exposedDecl");
+            llvm::StringRef attr = D->getAttr<clang::AnnotateAttr>()->getAnnotation();
+            std::vector<llvm::StringRef> exposingAttrStrVec =
+                { exposingAttributeStr, exposingSpecialAttributeStr };
+            assert(std::find(std::begin(exposingAttrStrVec),
+                std::end(exposingAttrStrVec), attr) != std::end(exposingAttrStrVec));
+            bool expose_special = attr.equals(exposingSpecialAttributeStr);
             if (const clang::CXXConstructorDecl* CD =
                     Result.Nodes.getNodeAs<clang::CXXConstructorDecl>("exposedDecl"))
             {
-                if (CD->getAttr<clang::AnnotateAttr>()->getAnnotation()
-                        .equals(exposingAttributeStr))
-                {
-                    //CD->dump();
-                    std::string ctor_name = CD->getQualifiedNameAsString();
-                    ctor_name = ctor_name.erase(ctor_name.find_last_of("::") - 1);
-                    exposed_funcs.emplace(ctor_name, CD->getParent(),
-                        CD->getReturnType(), CD->parameters(), CD->isStatic(),
-                        true);
-                }
+                //CD->dump();
+                std::string ctor_name = CD->getQualifiedNameAsString();
+                ctor_name = ctor_name.erase(ctor_name.find_last_of("::") - 1);
+                exposed_funcs.emplace(ctor_name, CD->getParent(),
+                    CD->getReturnType(), CD->parameters(), CD->isStatic(),
+                    true, expose_special);
             }
             else if (const clang::CXXMethodDecl* MD =
                     Result.Nodes.getNodeAs<clang::CXXMethodDecl>("exposedDecl"))
             {
-                if (MD->getAttr<clang::AnnotateAttr>()->getAnnotation()
-                        .equals(exposingAttributeStr))
-                {
-                    //MD->dump();
-                    //MD->getReturnType().dump();
-                    //if (const clang::BuiltinType* BT = llvm::dyn_cast<clang::BuiltinType>(MD->getReturnType()))
-                    //{
-                        //BT->desugar().dump();
-                        //std::cout << BT->getName(this->PP).str() << '\n';
-                        //std::cout << BT->getNameAsCString(this->PP) << '\n';
-                    //}
-                    exposed_funcs.emplace(MD->getNameAsString(), MD->getParent(),
-                        MD->getReturnType(), MD->parameters(), MD->isStatic());
-                }
+                //MD->dump();
+                //MD->getReturnType().dump();
+                //if (const clang::BuiltinType* BT = llvm::dyn_cast<clang::BuiltinType>(MD->getReturnType()))
+                //{
+                    //BT->desugar().dump();
+                    //std::cout << BT->getName(this->PP).str() << '\n';
+                    //std::cout << BT->getNameAsCString(this->PP) << '\n';
+                //}
+                exposed_funcs.emplace(MD->getNameAsString(), MD->getParent(),
+                    MD->getReturnType(), MD->parameters(), MD->isStatic(),
+                    false, expose_special);
             }
             else if (const clang::CXXRecordDecl* RD =
                     Result.Nodes.getNodeAs<clang::CXXRecordDecl>("exposedDecl"))
             {
-                if (RD->getAttr<clang::AnnotateAttr>()->getAnnotation()
-                        .equals(exposingAttributeStr))
-                {
-                    fuzzer::clang::addLibType(RD->getQualifiedNameAsString());
-                }
+                assert(!expose_special);
+                fuzzer::clang::addLibType(RD->getQualifiedNameAsString());
             }
             else if (const clang::EnumDecl* ED =
                     Result.Nodes.getNodeAs<clang::EnumDecl>("exposedDecl"))
             {
-                if (ED->getAttr<clang::AnnotateAttr>()->getAnnotation()
-                        .equals(exposingAttributeStr))
-                {
-                    fuzzer::clang::addLibType(ED->getQualifiedNameAsString());
-                }
+                assert(!expose_special);
+                fuzzer::clang::addLibType(ED->getQualifiedNameAsString());
             }
             else if (const clang::FunctionDecl* FD =
                     Result.Nodes.getNodeAs<clang::FunctionDecl>("exposedDecl"))
             {
-                if (FD->getAttr<clang::AnnotateAttr>()->getAnnotation()
-                        .equals(exposingAttributeStr))
-                {
-                    //FD->dump();
-                    //FD->getReturnType()->dump();
-                    exposed_funcs.emplace(FD->getQualifiedNameAsString(),
-                        FD->getReturnType(), FD->parameters(), FD->isStatic());
-                }
+                //FD->dump();
+                //FD->getReturnType()->dump();
+                exposed_funcs.emplace(FD->getQualifiedNameAsString(),
+                    FD->getReturnType(), FD->parameters(), FD->isStatic(),
+                    false, expose_special);
             }
             else if (const clang::TypeAliasDecl* TAD =
                     Result.Nodes.getNodeAs<clang::TypeAliasDecl>("exposedDecl"))
             {
-                if (TAD->getAttr<clang::AnnotateAttr>()->getAnnotation()
-                        .equals(exposingAttributeStr))
+                assert(!expose_special);
+                //TAD->dump();
+                //TAD->getDescribedAliasTemplate()->dump();
+                if (clang::TypeAliasTemplateDecl* TATD =
+                        TAD->getDescribedAliasTemplate())
                 {
-                    //TAD->dump();
-                    //TAD->getDescribedAliasTemplate()->dump();
-                    if (clang::TypeAliasTemplateDecl* TATD =
-                            TAD->getDescribedAliasTemplate())
-                    {
-                        fuzzer::clang::addLibTemplateType(
-                            TAD->getQualifiedNameAsString(),
-                            TATD->getTemplateParameters()->size());
-                        //exposed_template_types.emplace(
-                            //TAD->getQualifiedNameAsString(),
-                            //TATD->getTemplateParameters()->size());
+                    fuzzer::clang::addLibTemplateType(
+                        TAD->getQualifiedNameAsString(),
+                        TATD->getTemplateParameters()->size());
+                    //exposed_template_types.emplace(
+                        //TAD->getQualifiedNameAsString(),
+                        //TATD->getTemplateParameters()->size());
 
-                        //std::vector<std::string> template_str_list;
-                        //std::transform(TATD->getTemplateParameters()->begin(),
-                            //TATD->getTemplateParameters()->end(),
-                            //std::back_inserter(template_str_list),
-                            //[](clang::NamedDecl* ND)
-                            //{
-                                //return ND->getQualifiedNameAsString();
-                            //});
-                        //fuzzer::clang::addLibExposedTemplateType(
-                            //TAD->getQualifiedNameAsString(),
-                            //template_str_list);
-                    }
-                    else
-                    {
-                        fuzzer::clang::addLibType(TAD->getQualifiedNameAsString());
-                    }
+                    //std::vector<std::string> template_str_list;
+                    //std::transform(TATD->getTemplateParameters()->begin(),
+                        //TATD->getTemplateParameters()->end(),
+                        //std::back_inserter(template_str_list),
+                        //[](clang::NamedDecl* ND)
+                        //{
+                            //return ND->getQualifiedNameAsString();
+                        //});
+                    //fuzzer::clang::addLibExposedTemplateType(
+                        //TAD->getQualifiedNameAsString(),
+                        //template_str_list);
+                }
+                else
+                {
+                    fuzzer::clang::addLibType(TAD->getQualifiedNameAsString());
                 }
             }
             else if (const clang::TypedefDecl* TDD =
                     Result.Nodes.getNodeAs<clang::TypedefDecl>("exposedDecl"))
             {
+                assert(!expose_special);
                 if (TDD->getUnderlyingType().getAsString().back() == '*')
                 {
                     fuzzer::clang::addLibType(TDD->getQualifiedNameAsString(),

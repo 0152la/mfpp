@@ -133,6 +133,7 @@ helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
         const clang::Stmt* s = *(call_args_it);
         while (s->child_begin() != s->child_end())
         {
+            // TODO fix this condition
             assert(std::next(s->child_begin()) == s->child_end());
             s = *(s->child_begin());
         }
