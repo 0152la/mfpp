@@ -21,6 +21,8 @@ parser = argparse.ArgumentParser(
     description = "Metalib batch experiment generator and runner")
 parser.add_argument("config", type=str,
     help = "Path to configuration yaml file.")
+parser.add_argument("--run-timeout", type=int, default=120,
+    help = "Maximum time, in seconds, to allow execution of generated test cases.")
 parser.add_argument("--test-count", type=int, default=100,
     help = "Number of tests to run; set `-1` for infinite tests.")
 parser.add_argument("--debug", action='store_true',
@@ -39,11 +41,20 @@ parser.add_argument("--debug-to-file", action='store_true',
 # Helper functions
 ###############################################################################
 
-def exec_cmd(name, cmd, test_id):
-    log_console.debug(f"Running {name} command:\n\t*** {cmd}")
+def exec_cmd(name, cmd, test_id, timeout=None):
+    if not timeout:
+        log_console.debug(f"Running {name} command:\n\t*** {cmd}")
+    else:
+        log_console.debug(f"Running {name} command with t/o {timeout}:\n\t*** {cmd}")
+
     cmd_proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, encoding="utf-8")
-    out, err = cmd_proc.communicate()
+    try:
+        out, err = cmd_proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        log_console.warning(f"Timeout {name} command for test count {test_id}!")
+        cmd_proc.kill()
+        out, err = cmd_proc.communicate()
     log_runtime.info(f"{name} return code: {cmd_proc.returncode}")
     if cmd_proc.returncode != 0 or args.always_log_out:
         log_runtime.info(f"FAIL {name} command")
@@ -143,7 +154,7 @@ if __name__ == '__main__':
 
         run_output_file_name = os.path.splitext(f"{output_folder}/{output_file_name}")[0]
         run_cmd = f"{run_output_file_name}"
-        if not exec_cmd("execute", run_cmd, test_count):
+        if not exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout):
             continue
 
 
