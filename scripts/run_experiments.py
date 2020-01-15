@@ -51,17 +51,24 @@ def exec_cmd(name, cmd, test_id, timeout=None):
         stderr=subprocess.PIPE, encoding="utf-8")
     try:
         out, err = cmd_proc.communicate(timeout=timeout)
+        proc_timeout = False
     except subprocess.TimeoutExpired:
-        log_console.warning(f"Timeout {name} command for test count {test_id}!")
+        proc_timeout = True
         cmd_proc.kill()
         out, err = cmd_proc.communicate()
     log_runtime.info(f"{name} return code: {cmd_proc.returncode}")
     if cmd_proc.returncode != 0 or args.always_log_out:
-        log_runtime.info(f"FAIL {name} command")
+        if proc_timeout:
+            log_runtime.info(f"TIMEOUT {name} command")
+        else:
+            log_runtime.info(f"FAIL {name} command")
         log_runtime.debug(f"STDOUT:\n{out}")
         log_runtime.debug(f"STDERR:\n{err}")
     if cmd_proc.returncode != 0:
-        log_console.warning(f"Failed {name} command for test count {test_id}!")
+        if proc_timeout:
+            log_console.warning(f"Timeout {name} command for test count {test_id}!")
+        else:
+            log_console.warning(f"Failed {name} command for test count {test_id}!")
         try:
             shutil.copyfile(full_output_file_name, f"{save_test_folder}/{name}_fail_{test_id:07d}")
         except FileNotFoundError:
