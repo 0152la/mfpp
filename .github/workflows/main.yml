@@ -16,4 +16,4 @@ jobs:
     - name: Link library
       run: mkdir libs && ln -s `pwd`/third_party/library-metamorphic-testing/build/libmetalib_fuzz.so ./libs
     - name: Build
-      run: mkdir build && cd build && cmake -G Ninja && ninja
+      run: mkdir build && cd build && cmake -G Ninja .. && ninja
