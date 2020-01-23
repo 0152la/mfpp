@@ -11,3 +11,9 @@ jobs:
     - uses: actions/checkout@v1
     - name: Checkout submodules
       uses: textbook/git-checkout-submodule-action@2.0.0
+    - name: Build library-metamorphic-testing
+      run: cd third_party/library-metamorphic-testing/ && mkdir build && cd build && make -j && cd ../../..
+    - name: Link library
+      run: mkdir libs && ln -s `pwd`/third_party/library-metamorphic-testing/build/libmetalib_fuzz.so ./libs
+    - name: Build
+      run: mkdir build && cd build && cmake -G Ninja && ninja
