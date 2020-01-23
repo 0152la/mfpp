@@ -12,7 +12,7 @@ jobs:
     - name: Update APT
       run: sudo apt-get update
     - name: Install llvm-9
-      run: sudo apt-get remove --purge llvm-6 && sudo apt-get install llvm-9
+      run: sudo apt-get remove --purge clang-6 && sudo apt-get install llvm-9
     - name: Install clang-9
       run: sudo apt-get install clang-9 && sudo apt-get install libclang-common-9-dev && sudo apt-get install libclang1-9
     - name: Checkout submodules
