@@ -9,6 +9,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - name: Install clang-9
+      run: apt-get update && apt-get install clang-9
     - name: Checkout submodules
       uses: textbook/git-checkout-submodule-action@2.0.0
     - name: Build library-metamorphic-testing
