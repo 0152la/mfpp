@@ -1,4 +1,4 @@
-#include "fuzzHelperFuncStitch.hpp"
+#include "helperFuncStitch.hpp"
 
 static std::map<const clang::FunctionDecl*, helperFnDeclareInfo> helper_funcs_splits;
 static std::vector<helperFnReplaceInfo> stitch_exprs;
@@ -49,6 +49,7 @@ addNewSplit(const clang::FunctionDecl* fd)
         if (clang::ReturnStmt* return_instr_tmp =
                 llvm::dyn_cast<clang::ReturnStmt>(child))
         {
+            // TODO could handle multiple return instructions
             assert(!return_instr);
             return_instr = *(return_instr_tmp->child_begin());
             assert(std::next(return_instr_tmp->child_begin())

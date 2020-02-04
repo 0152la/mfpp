@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(MetaLibClangVer)
 set(CMAKE_CXX_STANDARD 17)
-
 set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(LIB_DIR ${CMAKE_SOURCE_DIR}/libs)
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
@@ -24,12 +23,11 @@ endif()
 
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
-    ${SRC_DIR}/fuzzHelperFuncStitch.cpp
+    ${SRC_DIR}/helperFuncStitch.cpp
     ${SRC_DIR}/parseFuzzerCalls.cpp
-    ${INCLUDE_DIR}/parseFuzzSpec.hpp
-    ${INCLUDE_DIR}/libSpecReader.hpp
-    ${INCLUDE_DIR}/fuzzHelperFuncStitch.hpp
-    ${INCLUDE_DIR}/parseFuzzerCalls.hpp
+    ${SRC_DIR}/parseFuzzSpec.cpp
+    ${SRC_DIR}/generateMetaTests.cpp
+    ${SRC_DIR}/libSpecReader.cpp
     )
 
 #target_compile_options(mtFuzzer PUBLIC -stdlib=libc++)

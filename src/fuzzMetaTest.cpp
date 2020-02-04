@@ -15,7 +15,7 @@
 
 #include "parseFuzzSpec.hpp"
 #include "parseFuzzerCalls.hpp"
-#include "fuzzHelperFuncStitch.hpp"
+#include "helperFuncStitch.hpp"
 #include "libSpecReader.hpp"
 
 #include "clang_interface.hpp"
@@ -43,7 +43,6 @@ size_t meta_test_rel_count = 7;
 llvm::SmallString<256> rewritten_input_file;
 std::string rewrite_data;
 std::string output_file = "";
-std::string meta_input_var_type = "";
 std::string set_meta_tests_path = "";
 
 extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
@@ -58,6 +57,8 @@ main(int argc, char const **argv)
 
     clang::tooling::ClangTool libTool(op.getCompilations(),
         LibInputList);
+    clang::tooling::ClangTool metaTool(op.getCompilations(),
+        SetMetaTestsInput);
     assert(op.getSourcePathList().size() == 1);
     std::string input_file = op.getSourcePathList().front();
     clang::tooling::ClangTool fuzzTool(op.getCompilations(),
@@ -67,11 +68,30 @@ main(int argc, char const **argv)
     assert(!set_meta_tests_path.empty());
     output_file = TestOutput;
 
-    libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get());
-    fuzzTool.run(clang::tooling::newFrontendActionFactory<fuzzHelperLoggerAction>().get());
-    fuzzTool.run(clang::tooling::newFrontendActionFactory<templateDuplicatorAction>().get());
+    if (libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
+    {
+        std::cout << "Error in reading exposed library specification." << std::endl;
+        exit(1);
+    }
+    if (metaTool.run(clang::tooling::newFrontendActionFactory<metaSpecReaderAction>().get()))
+    {
+        std::cout << "Error in reading metamorphic specification." << std::endl;
+        exit(1);
+    }
+    if (fuzzTool.run(clang::tooling::newFrontendActionFactory<fuzzHelperLoggerAction>().get()))
+    {
+        std::cout << "Error in logging helper functions." << std::endl;
+        exit(1);
+    }
+    if (fuzzTool.run(clang::tooling::newFrontendActionFactory<templateDuplicatorAction>().get()))
+    {
+        std::cout << "Error in duplicating fuzzer specifications." << std::endl;
+        exit(1);
+    }
 
     std::vector<std::unique_ptr<clang::tooling::FrontendActionFactory>> action_list;
+    action_list.emplace_back(
+        clang::tooling::newFrontendActionFactory<metaGeneratorAction>());
     action_list.emplace_back(
         clang::tooling::newFrontendActionFactory<parseFuzzConstructsAction>());
     action_list.emplace_back(
@@ -79,10 +99,16 @@ main(int argc, char const **argv)
     action_list.emplace_back(
         clang::tooling::newFrontendActionFactory<parseFuzzerCallsAction>());
 
+    size_t step_count = 0;
     for ( std::unique_ptr<clang::tooling::FrontendActionFactory>& fa : action_list)
     {
+        step_count += 1;
         clang::tooling::ClangTool processTool(op.getCompilations(),
             std::vector<std::string>{rewritten_input_file.str()});
-        processTool.run(fa.get());
+        if (processTool.run(fa.get()))
+        {
+            std::cout << "Error in processing step count " << step_count  << std::endl;
+            exit(1);
+        }
     }
 }

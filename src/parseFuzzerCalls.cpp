@@ -31,6 +31,33 @@ fuzzerCallsReplacer::getIntFromClangExpr(
     return int_val;
 }
 
+double
+fuzzerCallsReplacer::getDoubleFromClangExpr(
+    clang::CallExpr::const_arg_iterator ce_it) const
+{
+    const clang::FloatingLiteral* fp_lit;
+    const clang::UnaryOperator* uo =
+            llvm::dyn_cast<const clang::UnaryOperator>(*ce_it);
+    if (uo)
+    {
+        assert(uo->getOpcode() == clang::UnaryOperatorKind::UO_Minus);
+        fp_lit =
+            llvm::dyn_cast<clang::FloatingLiteral>(uo->getSubExpr());
+    }
+    else
+    {
+        fp_lit = llvm::dyn_cast<clang::FloatingLiteral>(*ce_it);
+    }
+    assert(fp_lit);
+
+    double fp_val = fp_lit->getValue().convertToDouble();
+    if (uo)
+    {
+        fp_val = -fp_val;
+    }
+    return fp_val;
+}
+
 void
 fuzzerCallsReplacer::makeReplace(
     std::vector<const clang::CallExpr*>& replace_exprs) const
@@ -63,7 +90,30 @@ fuzzerCallsReplacer::makeReplace(
                 }
 
                 replace_val = std::to_string(fuzzer::clang::generateRand(min, max));
+            }
+            else if (!rand_type.compare("double"))
+            {
+                double min = 0, max = std::numeric_limits<double>::max();
+                clang::CallExpr::const_arg_iterator it = ce->arg_begin();
+                if (it != ce->arg_end())
+                {
+                    min = fuzzerCallsReplacer::getDoubleFromClangExpr(it);
+                    std::advance(it, 1);
+                    if (it != ce->arg_end())
+                    {
+                        max = fuzzerCallsReplacer::getDoubleFromClangExpr(it);
+                        //max = llvm::dyn_cast<clang::IntegerLiteral>(*it)
+                            //->getValue().getSExtValue();
+                    }
+                    assert(std::next(it) == ce->arg_end());
+                }
 
+                replace_val = std::to_string(fuzzer::clang::generateRand(min, max));
+            }
+            else
+            {
+                std::cout << "Random generation for type " << rand_type << " not implemented!" << std::endl;
+                assert(false);
             }
             assert(replace_val != "");
             rw.ReplaceText(ce->getSourceRange(), replace_val);
