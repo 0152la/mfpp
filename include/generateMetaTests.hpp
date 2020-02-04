@@ -11,46 +11,17 @@
 #include <iostream>
 #include <sstream>
 
-#include "helperFuncStitch.hpp"
-#include "parseFuzzSpec.hpp"
+#include "metaSpecReader.hpp"
 #include "clang_interface.hpp"
 
-enum REL_TYPE
-{
-    GENERATOR,
-    RELATION,
-};
-
-class mrInfo: public helperFnDeclareInfo
-{
-    private:
-        REL_TYPE mr_type;
-        std::string mr_name;
-        std::string mr_family;
-
-    public:
-        mrInfo(const clang::FunctionDecl* _fn);
-
-        bool operator<(const mrInfo& other) const
-        {
-            return this->base_func->getQualifiedNameAsString() <
-                other.base_func->getQualifiedNameAsString();
-        };
-
-        REL_TYPE getType() const { return this->mr_type; };
-        std::string getFamily() const { return this->mr_family; };
-};
-
 mrInfo retrieveRandMrDecl(REL_TYPE mr_type, std::string family);
-void logMetaRelDecl(const clang::FunctionDecl*);
 std::string generateMetaTests(std::vector<std::string>, std::string,
     const std::string);
 std::string generateSingleMetaTest(std::vector<std::string>, std::string, const std::vector<std::string>&);
 std::string concretizeMetaRelation(const mrInfo&,
     helperFnDeclareInfo, size_t, clang::ASTContext&);
 
-
-class metaRelsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
+class metaCallsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
@@ -60,7 +31,7 @@ class metaGenerator : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder mr_matcher;
-        metaRelsLogger logger;
+        metaCallsLogger logger;
         clang::Rewriter& rw;
         clang::ASTContext& ctx;
 

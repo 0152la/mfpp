@@ -28,6 +28,7 @@ add_executable(mtFuzzer
     ${SRC_DIR}/parseFuzzSpec.cpp
     ${SRC_DIR}/generateMetaTests.cpp
     ${SRC_DIR}/libSpecReader.cpp
+    ${SRC_DIR}/metaSpecReader.cpp
     )
 
 #target_compile_options(mtFuzzer PUBLIC -stdlib=libc++)

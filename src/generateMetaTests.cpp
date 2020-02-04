@@ -1,9 +1,9 @@
 #include "generateMetaTests.hpp"
 
 static std::vector<const clang::CallExpr*> meta_test_calls;
-static std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
+extern std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
 
-std::string meta_input_var_type;
+extern std::string meta_input_var_type;
 extern size_t meta_test_rel_count;
 extern size_t meta_input_fuzz_count;
 
@@ -88,15 +88,10 @@ concretizeMetaRelation(const clang::CallExpr* caller,
 
 mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
 {
-    //std::cout << "MVIT ::: " << meta_input_var_type.getAsString() << std::endl;
-    std::cout << "MVIT ::: " << meta_input_var_type << std::endl;
-    //if (meta_input_var_type.empty())
-    //{
-        //meta_input_var_type = FD->getReturnType().getAsString();
-        //std::cout << "ADDED" << std::endl;
-        ////meta_input_var_type.dump();
-    //}
-    //assert(meta_input_var_type == FD->getReturnType());
+    if (meta_input_var_type.empty())
+    {
+        meta_input_var_type = FD->getReturnType().getAsString();
+    }
     assert(!FD->getReturnType().getAsString().compare(meta_input_var_type));
 
     std::string fd_name(FD->getQualifiedNameAsString()), delim("::");
@@ -119,77 +114,21 @@ mrInfo
 retrieveRandMrDecl(REL_TYPE mr_type, std::string family)
 {
     std::vector<mrInfo> matchingDecls = meta_rel_decls.at(std::make_pair(mr_type, family));
-    return matchingDecls.at(fuzzer::clang::generateRand(0, matchingDecls.size()));
+    return matchingDecls.at(fuzzer::clang::generateRand(0, matchingDecls.size() - 1));
 }
 
 void
-logMetaRelDecl(const clang::FunctionDecl* fd)
+metaCallsLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
-    mrInfo new_mr_decl(fd);
-    std::pair<REL_TYPE, std::string> mr_category(
-        new_mr_decl.getType(), new_mr_decl.getFamily());
-    if (!meta_rel_decls.count(mr_category))
-    {
-        meta_rel_decls.emplace(mr_category, std::vector<mrInfo>({new_mr_decl}));
-    }
-    else
-    {
-        meta_rel_decls.at(mr_category).push_back(new_mr_decl);
-    }
-    //std::vector<clang::Stmt*> instrs;
-    //clang::Stmt* return_instr = nullptr;
-    //meta_rel_decls.insert(std::make_pair(fd, helperFnDeclareInfo(fd)));
-
-    //clang::CompoundStmt* cs = llvm::dyn_cast<clang::CompoundStmt>(
-        //fd->getBody());
-    //assert(cs);
-    //for (clang::Stmt* child : cs->children())
-    //{
-        //if (clang::ReturnStmt* return_instr_tmp =
-                //llvm::dyn_cast<clang::ReturnStmt>(child))
-        //{
-            //// TODO could handle multiple return instructions
-            //assert(!return_instr);
-            //return_instr = *(return_instr_tmp->child_begin());
-            //assert(std::next(return_instr_tmp->child_begin())
-                 //== return_instr_tmp->child_end());
-        //}
-        //else
-        //{
-            //instrs.push_back(child);
-        //}
-    //}
-    //meta_rel_decls.at(fd).body_instrs = instrs;
-    //meta_rel_decls.at(fd).return_body = return_instr;
-}
-
-void
-metaRelsLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
-{
-    if (const clang::CallExpr* ce =
-            Result.Nodes.getNodeAs<clang::CallExpr>("metaTestCall"))
-    {
-        meta_test_calls.push_back(ce);
-    }
-    else
-    {
-        const clang::FunctionDecl* FD = Result.Nodes.getNodeAs<clang::FunctionDecl>("metaRel");
-        assert(FD);
-        logMetaRelDecl(FD);
-    }
+    const clang::CallExpr* ce =
+            Result.Nodes.getNodeAs<clang::CallExpr>("metaTestCall");
+    assert(ce);
+    meta_test_calls.push_back(ce);
 }
 
 metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
     rw(_rw), ctx(_ctx)
 {
-    mr_matcher.addMatcher(
-        clang::ast_matchers::functionDecl(
-        clang::ast_matchers::hasAncestor(
-        clang::ast_matchers::namespaceDecl(
-        clang::ast_matchers::hasName(
-        "metalib"))))
-            .bind("metaRel"), &logger);
-
     mr_matcher.addMatcher(
         clang::ast_matchers::callExpr(
         clang::ast_matchers::callee(
