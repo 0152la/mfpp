@@ -16,10 +16,11 @@
 
 mrInfo retrieveRandMrDecl(REL_TYPE mr_type, std::string family);
 std::string generateMetaTests(std::vector<std::string>, std::string,
-    const std::string);
-std::string generateSingleMetaTest(std::vector<std::string>, std::string, const std::vector<std::string>&);
-std::string concretizeMetaRelation(const mrInfo&,
-    helperFnDeclareInfo, size_t, clang::ASTContext&);
+    const std::string, clang::Rewriter&);
+std::string generateSingleMetaTest(std::vector<std::string>, std::string,
+    const std::vector<std::string>&, clang::Rewriter&);
+std::pair<std::string, std::string> concretizeMetaRelation(helperFnDeclareInfo,
+    size_t, clang::Rewriter&);
 
 class metaCallsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
@@ -31,7 +32,8 @@ class metaGenerator : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder mr_matcher;
-        metaCallsLogger logger;
+        metaCallsLogger mc_logger;
+        metaRelsLogger mr_logger;
         clang::Rewriter& rw;
         clang::ASTContext& ctx;
 
