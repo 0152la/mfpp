@@ -1,9 +1,9 @@
 #include "generateMetaTests.hpp"
 
 static std::vector<const clang::CallExpr*> meta_test_calls;
-extern std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
+std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
+std::string meta_input_var_type = "";
 
-extern std::string meta_input_var_type;
 extern size_t meta_test_rel_count;
 extern size_t meta_input_fuzz_count;
 
@@ -15,7 +15,7 @@ std::map<std::string, REL_TYPE> mr_type_map {
 
 std::string
 generateMetaTests(std::vector<std::string> input_var_names,
-    std::string meta_input_var_type, std::string indent)
+    std::string meta_input_var_type, std::string indent, clang::Rewriter& rw)
 {
     size_t meta_test_count = 20, meta_test_size = 5;
     std::vector<std::string> meta_family_chain;
@@ -23,7 +23,10 @@ generateMetaTests(std::vector<std::string> input_var_names,
     std::for_each(std::begin(meta_rel_decls), std::end(meta_rel_decls),
         [&meta_families](std::pair<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> mr_decl)
         {
-            meta_families.insert(mr_decl.first.second);
+            if (mr_decl.first.first == REL_TYPE::RELATION)
+            {
+                meta_families.insert(mr_decl.first.second);
+            }
         });
     assert(!meta_families.empty());
     std::cout << " === META FAMILIES" << std::endl;
@@ -42,7 +45,7 @@ generateMetaTests(std::vector<std::string> input_var_names,
     for (int i = 0; i < meta_test_count; ++i)
     {
         std::string meta_test = generateSingleMetaTest(input_var_names,
-            meta_input_var_type, meta_family_chain);
+            meta_input_var_type, meta_family_chain, rw);
         meta_tests << meta_test << std::endl;
         //meta_tests << std::replace(std::begin(meta_test), std::end(meta_test),
             //"\n", "\n" + indent)
@@ -55,35 +58,45 @@ generateMetaTests(std::vector<std::string> input_var_names,
 
 std::string
 generateSingleMetaTest(std::vector<std::string> input_var_names,
-    std::string meta_input_var_type, const std::vector<std::string>& meta_family_chain)
+    std::string meta_input_var_type,
+    const std::vector<std::string>& meta_family_chain, clang::Rewriter& rw)
 {
+    size_t index = 0;
+    std::stringstream mt_body;
     for (std::string meta_family : meta_family_chain)
     {
-        std::vector<mrInfo> meta_rel_choices = meta_rel_decls.at(std::make_pair(REL_TYPE::RELATION, meta_family));
-        mrInfo chosen_mr = meta_rel_choices.at(fuzzer::clang::generateRand(0, meta_rel_choices.size() - 1));
-        std::cout << " === CHOSEN MR " << std::endl;
-        chosen_mr.base_func->dump();
+        std::vector<mrInfo> meta_rel_choices =
+            meta_rel_decls.at(std::make_pair(REL_TYPE::RELATION, meta_family));
+        mrInfo chosen_mr = meta_rel_choices.at(
+            fuzzer::clang::generateRand(0, meta_rel_choices.size() - 1));
+        std::pair<std::string, std::string> rw_meta_rel =
+            concretizeMetaRelation(chosen_mr, index, rw);
+        ++index;
+
     }
-    exit(1);
+    return mt_body.str();
 }
 
-
-std::string
-concretizeMetaRelation(const clang::CallExpr* caller,
-    helperFnDeclareInfo meta_rel_decl, size_t test_cnt, clang::ASTContext& ctx)
+std::pair<std::string, std::string>
+concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl, size_t test_cnt,
+    clang::Rewriter& rw)
 {
-    clang::Rewriter tmp_rw(ctx.getSourceManager(), ctx.getLangOpts());
-    helperFnReplaceInfo replace_info(caller, getBaseParent(caller, ctx));
-    std::pair<std::string, std::string> replace_strs =
-        meta_rel_decl.getSplitWithReplacements(
-            replace_info.concrete_params, tmp_rw, test_cnt);
+    std::string rw_body, rw_return;
+    for (const clang::DeclRefExpr* dre : meta_rel_decl.body_dre)
+    {
+        dre->dump();
+    }
+    exit(1);
+    return std::make_pair(rw_body, rw_return);
 
-    std::cout << replace_strs.first << std::endl;
-    return replace_strs.first;
-    //rw.InsertText(replace_info.base_stmt->getBeginLoc(), replace_strs.first + '\n' +
-        //clang::Lexer::getIndentationForLine(replace_info.base_stmt->getBeginLoc(),
-            //rw.getSourceMgr()).str());
-    //rw.ReplaceText(replace_info.call_expr->getSourceRange(), replace_strs.second);
+    //clang::Rewriter tmp_rw(ctx.getSourceManager(), ctx.getLangOpts());
+    //helperFnReplaceInfo replace_info(caller, getBaseParent(caller, ctx));
+    //std::pair<std::string, std::string> replace_strs =
+        //meta_rel_decl.getSplitWithReplacements(
+            //replace_info.concrete_params, tmp_rw, test_cnt);
+
+    //std::cout << replace_strs.first << std::endl;
+    //return replace_strs.first;
 }
 
 mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
@@ -135,8 +148,15 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         clang::ast_matchers::functionDecl(
         clang::ast_matchers::hasName(
         "fuzz::meta_test"))))
-            .bind("metaTestCall"), &logger);
+            .bind("metaTestCall"), &mc_logger);
 
+    mr_matcher.addMatcher(
+        clang::ast_matchers::functionDecl(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::namespaceDecl(
+        clang::ast_matchers::hasName(
+        "metalib"))))
+            .bind("metaRel"), &mr_logger);
 }
 
 void
@@ -165,7 +185,7 @@ metaGenerator::expandMetaTests()
         meta_call->getDirectCallee()->dump();
 
         rw.ReplaceText(meta_call->getSourceRange(),
-            generateMetaTests(input_var_names, meta_input_var_type, indent));
+            generateMetaTests(input_var_names, meta_input_var_type, indent, rw));
     }
 }
 

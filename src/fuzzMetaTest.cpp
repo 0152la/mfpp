@@ -46,9 +46,6 @@ std::string rewrite_data;
 std::string output_file = "";
 std::string set_meta_tests_path = "";
 
-std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
-std::string meta_input_var_type = "";
-
 extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
 extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
     exposed_func;
@@ -75,11 +72,6 @@ main(int argc, char const **argv)
     if (libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {
         std::cout << "Error in reading exposed library specification." << std::endl;
-        exit(1);
-    }
-    if (metaTool.run(clang::tooling::newFrontendActionFactory<metaRelsReaderAction>().get()))
-    {
-        std::cout << "Error in reading metamorphic specification." << std::endl;
         exit(1);
     }
     if (fuzzTool.run(clang::tooling::newFrontendActionFactory<fuzzHelperLoggerAction>().get()))

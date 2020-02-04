@@ -42,6 +42,7 @@ metaRelsReader::logMetaRelDecl(const clang::FunctionDecl* fd)
     {
         meta_rel_decls.at(mr_category).push_back(new_mr_decl);
     }
+    new_mr_decl.base_func->dump();
     //std::vector<clang::Stmt*> instrs;
     //clang::Stmt* return_instr = nullptr;
     //meta_rel_decls.insert(std::make_pair(fd, helperFnDeclareInfo(fd)));
