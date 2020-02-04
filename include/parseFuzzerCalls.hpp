@@ -26,6 +26,7 @@ class fuzzerCallsReplacer
 
     private:
         int getIntFromClangExpr(clang::CallExpr::const_arg_iterator) const;
+        double getDoubleFromClangExpr(clang::CallExpr::const_arg_iterator) const;
 };
 
 class fuzzerCallsLocator: public clang::ast_matchers::MatchFinder::MatchCallback

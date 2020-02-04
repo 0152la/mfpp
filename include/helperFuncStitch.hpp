@@ -1,5 +1,5 @@
-#ifndef FUZZ_HELPER_FUNC_STITCH_HPP
-#define FUZZ_HELPER_FUNC_STITCH_HPP
+#ifndef HELPER_FUNC_STITCH_HPP
+#define HELPER_FUNC_STITCH_HPP
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -12,6 +12,11 @@
 #include <numeric>
 
 typedef std::pair<std::vector<clang::Stmt*>, clang::Stmt*> helpFnSplit;
+
+const clang::ast_type_traits::DynTypedNode
+getBaseParent(const clang::ast_type_traits::DynTypedNode, clang::ASTContext&);
+const clang::Stmt*
+getBaseParent(const clang::Expr* e, clang::ASTContext& ctx);
 
 class helperFnDeclareInfo
 {
@@ -105,4 +110,4 @@ class fuzzHelperFuncStitchAction : public clang::ASTFrontendAction
             clang::CompilerInstance&, llvm::StringRef) override;
 };
 
-#endif // FUZZ_HELPER_FUNC_STITCH_HPP
+#endif // HELPER_FUNC_STITCH_HPP
