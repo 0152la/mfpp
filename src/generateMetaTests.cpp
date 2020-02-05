@@ -6,6 +6,7 @@ std::string meta_input_var_type = "";
 
 extern size_t meta_test_rel_count;
 extern size_t meta_input_fuzz_count;
+extern std::string meta_input_var_prefix;
 
 std::map<std::string, REL_TYPE> mr_type_map {
     { "generators" , GENERATOR },
@@ -52,7 +53,6 @@ generateMetaTests(std::vector<std::string> input_var_names,
     }
     std::cout << " === META TESTS" << std::endl;
     std::cout << meta_tests.str();
-    exit(1);
     return meta_tests.str();
 }
 
@@ -86,6 +86,7 @@ concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl, size_t test_cnt,
     {
         dre->dump();
     }
+    std::cout << " === CONCRETE DONE" << std::endl;
     exit(1);
     return std::make_pair(rw_body, rw_return);
 
@@ -157,13 +158,48 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         clang::ast_matchers::hasName(
         "metalib"))))
             .bind("metaRel"), &mr_logger);
+
+    mr_dre_matcher.addMatcher(
+        clang::ast_matchers::declRefExpr(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::functionDecl()))
+            .bind("mrDRE"), &mr_dre_logger);
+
+    mr_dre_matcher.addMatcher(
+        clang::ast_matchers::declRefExpr()
+            .bind("fdTest"), &test_mcb);
 }
 
 void
 metaGenerator::HandleTranslationUnit(clang::ASTContext& ctx)
 {
     mr_matcher.matchAST(ctx);
+    for (const clang::FunctionDecl* fd : this->mr_logger.matched_fds)
+    {
+        this->logMetaRelDecl(fd);
+    }
     this->expandMetaTests();
+}
+
+void
+metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
+{
+    mrInfo new_mr_decl(fd);
+    this->mr_dre_matcher.match(*fd, ctx);
+    std::vector<const clang::DeclRefExpr*> new_mr_dres =
+        this->mr_dre_logger.matched_dres;
+    new_mr_decl.body_dre.insert(new_mr_dres.end(), new_mr_dres.begin(),
+        new_mr_dres.end());
+    std::pair<REL_TYPE, std::string> mr_category(
+        new_mr_decl.getType(), new_mr_decl.getFamily());
+    if (!meta_rel_decls.count(mr_category))
+    {
+        meta_rel_decls.emplace(mr_category, std::vector<mrInfo>({new_mr_decl}));
+    }
+    else
+    {
+        meta_rel_decls.at(mr_category).push_back(new_mr_decl);
+    }
 }
 
 void
@@ -181,8 +217,8 @@ metaGenerator::expandMetaTests()
         const std::string indent =
             clang::Lexer::getIndentationForLine(meta_call->getBeginLoc(),
                 rw.getSourceMgr()).str();
-        meta_call->dump();
-        meta_call->getDirectCallee()->dump();
+        //meta_call->dump();
+        //meta_call->getDirectCallee()->dump();
 
         rw.ReplaceText(meta_call->getSourceRange(),
             generateMetaTests(input_var_names, meta_input_var_type, indent, rw));

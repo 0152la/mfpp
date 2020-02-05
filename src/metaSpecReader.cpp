@@ -4,14 +4,24 @@ extern std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_
 extern std::string meta_input_var_type;
 
 void
+mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
+{
+    const clang::DeclRefExpr* DRE = Result.Nodes.getNodeAs<clang::DeclRefExpr>("mrDRE");
+    assert(DRE);
+    std::cout << "DRE DUMP" << std::endl;
+    DRE->dump();
+    this->matched_dres.push_back(DRE);
+}
+
+void
 metaRelsLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
     const clang::FunctionDecl* FD = Result.Nodes.getNodeAs<clang::FunctionDecl>("metaRel");
     assert(FD);
-    metaRelsReader::logMetaRelDecl(FD);
+    this->matched_fds.push_back(FD);
 }
 
-metaRelsReader::metaRelsReader()
+metaRelsReader::metaRelsReader(clang::ASTContext& _ctx) : ctx(_ctx)
 {
     mr_matcher.addMatcher(
         clang::ast_matchers::functionDecl(
@@ -19,19 +29,34 @@ metaRelsReader::metaRelsReader()
         clang::ast_matchers::namespaceDecl(
         clang::ast_matchers::hasName(
         "metalib"))))
-            .bind("metaRel"), &logger);
+            .bind("metaRel"), &mr_logger);
+
+    mr_dre_matcher.addMatcher(
+        clang::ast_matchers::declRefExpr(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::functionDecl()))
+            .bind("mrDRE"), &dre_logger);
 }
 
 void
 metaRelsReader::HandleTranslationUnit(clang::ASTContext& ctx)
 {
     mr_matcher.matchAST(ctx);
+    for (const clang::FunctionDecl* fd : this->mr_logger.matched_fds)
+    {
+        this->logMetaRelDecl(fd);
+    }
 }
 
 void
 metaRelsReader::logMetaRelDecl(const clang::FunctionDecl* fd)
 {
     mrInfo new_mr_decl(fd);
+    this->mr_dre_matcher.match(*fd, ctx);
+    std::vector<const clang::DeclRefExpr*> new_mr_dres =
+        this->dre_logger.matched_dres;
+    new_mr_decl.body_dre.insert(new_mr_dres.end(), new_mr_dres.begin(),
+        new_mr_dres.end());
     std::pair<REL_TYPE, std::string> mr_category(
         new_mr_decl.getType(), new_mr_decl.getFamily());
     if (!meta_rel_decls.count(mr_category))
@@ -42,32 +67,6 @@ metaRelsReader::logMetaRelDecl(const clang::FunctionDecl* fd)
     {
         meta_rel_decls.at(mr_category).push_back(new_mr_decl);
     }
-    new_mr_decl.base_func->dump();
-    //std::vector<clang::Stmt*> instrs;
-    //clang::Stmt* return_instr = nullptr;
-    //meta_rel_decls.insert(std::make_pair(fd, helperFnDeclareInfo(fd)));
-
-    //clang::CompoundStmt* cs = llvm::dyn_cast<clang::CompoundStmt>(
-        //fd->getBody());
-    //assert(cs);
-    //for (clang::Stmt* child : cs->children())
-    //{
-        //if (clang::ReturnStmt* return_instr_tmp =
-                //llvm::dyn_cast<clang::ReturnStmt>(child))
-        //{
-            //// TODO could handle multiple return instructions
-            //assert(!return_instr);
-            //return_instr = *(return_instr_tmp->child_begin());
-            //assert(std::next(return_instr_tmp->child_begin())
-                 //== return_instr_tmp->child_end());
-        //}
-        //else
-        //{
-            //instrs.push_back(child);
-        //}
-    //}
-    //meta_rel_decls.at(fd).body_instrs = instrs;
-    //meta_rel_decls.at(fd).return_body = return_instr;
 }
 
 bool
@@ -84,5 +83,5 @@ std::unique_ptr<clang::ASTConsumer>
 metaRelsReaderAction::CreateASTConsumer(clang::CompilerInstance& CI,
     llvm::StringRef File)
 {
-    return std::make_unique<metaRelsReader>();
+    return std::make_unique<metaRelsReader>(CI.getASTContext());
 }

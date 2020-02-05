@@ -22,6 +22,18 @@ std::string generateSingleMetaTest(std::vector<std::string>, std::string,
 std::pair<std::string, std::string> concretizeMetaRelation(helperFnDeclareInfo,
     size_t, clang::Rewriter&);
 
+class testMatcherCallback: public clang::ast_matchers::MatchFinder::MatchCallback
+{
+    public:
+        virtual void run(const clang::ast_matchers::MatchFinder::MatchResult& Result) override
+        {
+            std::cout << "CALLBACK MATCH" << std::endl;
+            const clang::DeclRefExpr* FD = Result.Nodes.getNodeAs<clang::DeclRefExpr>("fdTest");
+            assert(FD);
+            FD->dump();
+        };
+};
+
 class metaCallsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
@@ -32,8 +44,11 @@ class metaGenerator : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder mr_matcher;
+        clang::ast_matchers::MatchFinder mr_dre_matcher;
         metaCallsLogger mc_logger;
         metaRelsLogger mr_logger;
+        mrDRELogger mr_dre_logger;
+        testMatcherCallback test_mcb;
         clang::Rewriter& rw;
         clang::ASTContext& ctx;
 
@@ -41,6 +56,7 @@ class metaGenerator : public clang::ASTConsumer
         metaGenerator(clang::Rewriter&, clang::ASTContext&);
 
         void HandleTranslationUnit(clang::ASTContext&) override;
+        void logMetaRelDecl(const clang::FunctionDecl*);
         void expandMetaTests();
 };
 

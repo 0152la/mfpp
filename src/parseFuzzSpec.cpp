@@ -7,13 +7,13 @@ static std::set<clang::VarDecl*> input_template_var_decls;
 static std::map<size_t, std::vector<std::string>>
     input_template_copies;
 static const clang::CompoundStmt* main_child;
-static std::vector<const clang::VarDecl*> output_var_decls;
 
 extern size_t meta_input_fuzz_count;
 extern size_t meta_test_rel_count;
 extern std::string meta_input_var_type;
 extern llvm::SmallString<256> rewritten_input_file;
 extern std::string rewrite_data;
+extern std::string meta_input_var_prefix;
 
 extern std::string set_meta_tests_path;
 
@@ -190,7 +190,7 @@ parseFuzzConstructsVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
         clang::NamespaceDecl* nd = dre->getQualifier()->getAsNamespace();
         if (nd && !nd->getNameAsString().compare("fuzz"))
         {
-            if (!dre->getDecl()->getNameAsString().compare("output_var"))
+            if (!dre->getDecl()->getNameAsString().compare(meta_input_var_prefix))
             {
                 clang::ASTContext::DynTypedNodeList dre_parents =
                     this->ctx.getParents(*dre);
@@ -546,14 +546,14 @@ templateDuplicator::HandleTranslationUnit(clang::ASTContext& ctx)
             {
                 std::stringstream output_var_decl_rw;
                 output_var_decl_rw << stmt_redecl.output_var_type;
-                output_var_decl_rw << " output_var_" << i;
+                output_var_decl_rw << " " << meta_input_var_prefix << i;
                 rw_tmp.ReplaceText(stmt_redecl.output_var_decl,
                     output_var_decl_rw.str());
             }
             for (clang::SourceRange sr :
                     stmt_redecl.output_var_additions)
             {
-                rw_tmp.ReplaceText(sr, "output_var_" + std::to_string(i));
+                rw_tmp.ReplaceText(sr, meta_input_var_prefix + std::to_string(i));
             }
             input_template_copies.at(i).
                 push_back((indent + rw_tmp.getRewrittenText(

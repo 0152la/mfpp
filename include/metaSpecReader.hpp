@@ -1,6 +1,7 @@
 #ifndef META_SPEC_READER_HPP
 #define META_SPEC_READER_HPP
 
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Frontend/CompilerInstance.h"
@@ -39,9 +40,20 @@ class mrInfo: public helperFnDeclareInfo
         std::string getFamily() const { return this->mr_family; };
 };
 
+class mrDRELogger: public clang::ast_matchers::MatchFinder::MatchCallback
+{
+
+    public:
+        std::vector<const clang::DeclRefExpr*> matched_dres;
+
+        virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
+};
+
 class metaRelsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
+        std::vector<const clang::FunctionDecl*> matched_fds;
+
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };
 
@@ -49,13 +61,16 @@ class metaRelsReader : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder mr_matcher;
-        metaRelsLogger logger;
+        clang::ast_matchers::MatchFinder mr_dre_matcher;
+        metaRelsLogger mr_logger;
+        mrDRELogger dre_logger;
+        clang::ASTContext& ctx;
 
     public:
-        metaRelsReader();
+        metaRelsReader(clang::ASTContext& _ctx);
 
         void HandleTranslationUnit(clang::ASTContext&) override;
-        static void logMetaRelDecl(const clang::FunctionDecl*);
+        void logMetaRelDecl(const clang::FunctionDecl*);
 };
 
 class metaRelsReaderAction : public clang::ASTFrontendAction

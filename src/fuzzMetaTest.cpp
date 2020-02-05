@@ -49,6 +49,7 @@ std::string set_meta_tests_path = "";
 extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
 extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
     exposed_func;
+std::string meta_input_var_prefix = "output_var";
 
 int
 main(int argc, char const **argv)
