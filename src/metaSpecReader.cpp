@@ -8,9 +8,12 @@ mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
     const clang::DeclRefExpr* DRE = Result.Nodes.getNodeAs<clang::DeclRefExpr>("mrDRE");
     assert(DRE);
-    std::cout << "DRE DUMP" << std::endl;
-    DRE->dump();
-    this->matched_dres.push_back(DRE);
+    if (llvm::dyn_cast<clang::ParmVarDecl>(DRE->getDecl()))
+    {
+        std::cout << "PARMVARDECL DRE DUMP" << std::endl;
+        DRE->dump();
+        this->matched_dres.push_back(DRE);
+    }
 }
 
 void
