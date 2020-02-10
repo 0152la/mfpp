@@ -3,6 +3,8 @@
 static std::vector<const clang::CallExpr*> meta_test_calls;
 std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
 std::string meta_input_var_type = "";
+std::vector<std::string> meta_input_var_names = {
+    "metainvar1", "metainvar2", "metainvar3" };
 
 extern size_t meta_test_rel_count;
 extern size_t meta_input_fuzz_count;
@@ -82,11 +84,25 @@ concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl, size_t test_cnt,
     clang::Rewriter& rw)
 {
     std::string rw_body, rw_return;
+    clang::Rewriter tmp_rw(rw.getSourceMgr(), rw.getLangOpts());
     for (const clang::DeclRefExpr* dre : meta_rel_decl.body_dre)
     {
-        dre->dump();
+        tmp_rw.ReplaceText(dre->getSourceRange(), meta_input_var_names.at(2));
     }
     std::cout << " === CONCRETE DONE" << std::endl;
+    rw_body = std::accumulate(
+        std::begin(meta_rel_decl.body_instrs),
+        std::end(meta_rel_decl.body_instrs), std::string(),
+        [&tmp_rw](std::string acc, clang::Stmt* s)
+        {
+            const std::string indent = clang::Lexer::getIndentationForLine(
+                s->getBeginLoc(), tmp_rw.getSourceMgr()).str();
+            return acc + '\n' + indent +
+                tmp_rw.getRewrittenText(s->getSourceRange()) + ';';
+        });
+    rw_return = tmp_rw.getRewrittenText(meta_rel_decl.return_body->getSourceRange());
+    std::cout << " INSTRS" << std::endl << rw_body << std::endl;
+    std::cout << " RETURN" << std::endl << rw_return << std::endl;
     exit(1);
     return std::make_pair(rw_body, rw_return);
 
@@ -159,15 +175,25 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         "metalib"))))
             .bind("metaRel"), &mr_logger);
 
-    mr_dre_matcher.addMatcher(
+    mr_matcher.addMatcher(
         clang::ast_matchers::declRefExpr(
         clang::ast_matchers::hasAncestor(
-        clang::ast_matchers::functionDecl()))
+        clang::ast_matchers::functionDecl(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::namespaceDecl(
+        clang::ast_matchers::hasName(
+        "metalib"))))))
             .bind("mrDRE"), &mr_dre_logger);
 
-    mr_dre_matcher.addMatcher(
-        clang::ast_matchers::declRefExpr()
-            .bind("fdTest"), &test_mcb);
+    //mr_dre_matcher.addMatcher(
+        //clang::ast_matchers::declRefExpr(
+        //clang::ast_matchers::hasAncestor(
+        //clang::ast_matchers::functionDecl()))
+            //.bind("mrDRE"), &mr_dre_logger);
+
+    //mr_dre_matcher.addMatcher(
+        //clang::ast_matchers::declRefExpr()
+            //.bind("fdTest"), &test_mcb);
 }
 
 void
@@ -188,7 +214,7 @@ metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
     this->mr_dre_matcher.match(*fd, ctx);
     std::vector<const clang::DeclRefExpr*> new_mr_dres =
         this->mr_dre_logger.matched_dres;
-    new_mr_decl.body_dre.insert(new_mr_dres.end(), new_mr_dres.begin(),
+    new_mr_decl.body_dre.insert(new_mr_decl.body_dre.end(), new_mr_dres.begin(),
         new_mr_dres.end());
     std::pair<REL_TYPE, std::string> mr_category(
         new_mr_decl.getType(), new_mr_decl.getFamily());
