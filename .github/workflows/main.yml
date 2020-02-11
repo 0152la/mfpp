@@ -1,0 +1,25 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Update APT
+      run: sudo apt-get update
+    - name: Install llvm-9
+      run: sudo apt-get install llvm-9 llvm-9-dev
+    - name: Install clang-9
+      run: sudo apt-get install clang-9 libclang-9-dev
+    - name: Checkout submodules
+      uses: textbook/git-checkout-submodule-action@2.0.0
+    - name: Build library-metamorphic-testing
+      run: cd third_party/library-metamorphic-testing/ && mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Release -DMETALIB_LIB_ONLY=ON -DYAML_BUILD_SHARED_LIBS=ON .. && make -j && cd ../../..
+    - name: Link library
+      run: mkdir libs && ln -s `pwd`/third_party/library-metamorphic-testing/build/libmetalib_fuzz.so ./libs
+    - name: Build
+      run: mkdir build && cd build && Clang_DIR=/usr/lib/llvm-9/lib/cmake/clang/ cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=/usr/bin/clang-9 -DCMAKE_CXX_COMPILER=/usr/bin/clang++-9 .. && make -j6
