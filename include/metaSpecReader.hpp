@@ -45,6 +45,7 @@ class mrDRELogger: public clang::ast_matchers::MatchFinder::MatchCallback
 
     public:
         std::vector<const clang::DeclRefExpr*> matched_dres;
+        std::vector<const clang::VarDecl*> matched_vds;
 
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };

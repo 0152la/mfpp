@@ -41,6 +41,7 @@ static llvm::cl::list<std::string> LibInputList("lib-list",
 
 size_t meta_input_fuzz_count = 3;
 size_t meta_test_rel_count = 7;
+size_t meta_test_count = 20;
 llvm::SmallString<256> rewritten_input_file;
 std::string rewrite_data;
 std::string output_file = "";
@@ -50,6 +51,7 @@ extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars
 extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
     exposed_func;
 std::string meta_input_var_prefix = "output_var";
+std::string meta_var_name = "r";
 
 int
 main(int argc, char const **argv)

@@ -627,18 +627,10 @@ parseFuzzConstructsAction::EndSourceFileAction()
 
     std::error_code ec;
     int fd;
-    llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
+    llvm::sys::fs::createTemporaryFile("mtFuzz", "cpp", fd,
         rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
     //llvm::sys::fs::remove(rewritten_input_file);
 
-    //assert(!output_file.empty());
-    //std::error_code ec;
-    //llvm::raw_fd_ostream of_rfo(output_file, ec);
-    //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-        //.write(of_rfo);
-    //of_rfo.close();
-    //rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
-        //.write(llvm::outs());
 }

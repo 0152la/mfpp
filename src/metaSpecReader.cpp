@@ -6,14 +6,26 @@ extern std::string meta_input_var_type;
 void
 mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
-    const clang::DeclRefExpr* DRE = Result.Nodes.getNodeAs<clang::DeclRefExpr>("mrDRE");
-    assert(DRE);
-    if (llvm::dyn_cast<clang::ParmVarDecl>(DRE->getDecl()))
+    if (const clang::VarDecl* VD = Result.Nodes.getNodeAs<clang::VarDecl>("mrVD"))
     {
-        std::cout << "PARMVARDECL DRE DUMP" << std::endl;
-        DRE->dump();
-        this->matched_dres.push_back(DRE);
+        std::cout << "VD DUMP" << std::endl;
+        VD->dump();
+        this->matched_vds.push_back(VD);
+        return;
     }
+    else if (const clang::DeclRefExpr* DRE =
+            Result.Nodes.getNodeAs<clang::DeclRefExpr>("mrDRE"))
+    {
+        if (llvm::dyn_cast<clang::ParmVarDecl>(DRE->getDecl()) ||
+                llvm::dyn_cast<clang::VarDecl>(DRE->getDecl()))
+        {
+            std::cout << "DRE DUMP" << std::endl;
+            DRE->dump();
+            this->matched_dres.push_back(DRE);
+        }
+        return;
+    }
+    assert(false);
 }
 
 void
