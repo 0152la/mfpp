@@ -21,9 +21,10 @@ getBaseParent(const clang::Expr* e, clang::ASTContext& ctx);
 class helperFnDeclareInfo
 {
     public:
-        const clang::FunctionDecl* base_func;
+        const clang::FunctionDecl* base_func = nullptr;
         std::vector<clang::Stmt*> body_instrs;
-        clang::Stmt* return_body;
+        clang::Stmt* return_body = nullptr;
+        //std::vector<const clang::Stmt*> return_instrs;
         std::vector<const clang::DeclRefExpr*> body_dre;
         std::vector<const clang::VarDecl*> body_vd;
 

@@ -3,12 +3,18 @@
 static std::vector<const clang::CallExpr*> meta_test_calls;
 std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
 std::string meta_input_var_type = "";
-std::vector<std::string> meta_input_var_names = {
-    "metainvar1", "metainvar2", "metainvar3" };
+std::string mr_vd_suffix = "_mrv";
+std::vector<std::string> meta_input_var_names;
 
-extern size_t meta_test_rel_count;
+extern std::string meta_var_name;
 extern size_t meta_input_fuzz_count;
+extern size_t meta_test_rel_count;
+extern size_t meta_test_count;
 extern std::string meta_input_var_prefix;
+
+static size_t mr_vd_rw_index = 0;
+
+extern llvm::SmallString<256> rewritten_input_file;
 
 std::map<std::string, REL_TYPE> mr_type_map {
     { "generators" , GENERATOR },
@@ -20,9 +26,16 @@ std::string
 generateMetaTests(std::vector<std::string> input_var_names,
     std::string meta_input_var_type, std::string indent, clang::Rewriter& rw)
 {
-    size_t meta_test_count = 20, meta_test_size = 5;
     std::vector<std::string> meta_family_chain;
     std::set<std::string> meta_families;
+
+    // Populate metamorphic input variables
+    for (size_t i = 0; i < meta_input_fuzz_count; ++i)
+    {
+        meta_input_var_names.push_back(meta_input_var_prefix + std::to_string(i));
+    }
+
+    // Populate metamorphic families
     std::for_each(std::begin(meta_rel_decls), std::end(meta_rel_decls),
         [&meta_families](std::pair<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> mr_decl)
         {
@@ -32,12 +45,14 @@ generateMetaTests(std::vector<std::string> input_var_names,
             }
         });
     assert(!meta_families.empty());
-    std::cout << " === META FAMILIES" << std::endl;
-    for (std::string f : meta_families)
-    {
-        std::cout << f << std::endl;
-    }
-    for (size_t i = 0; i < meta_test_size; ++i)
+    //std::cout << " === META FAMILIES" << std::endl;
+    //for (std::string f : meta_families)
+    //{
+        //std::cout << f << std::endl;
+    //}
+
+    // Generate meta family chain
+    for (size_t i = 0; i < meta_test_rel_count; ++i)
     {
         std::set<std::string>::const_iterator it = meta_families.cbegin();
         std::advance(it, fuzzer::clang::generateRand(0, meta_families.size() - 1));
@@ -45,66 +60,132 @@ generateMetaTests(std::vector<std::string> input_var_names,
     }
     std::stringstream meta_tests;
     meta_tests << '\n';
+
+    // Generate single metamorphic test
     for (int i = 0; i < meta_test_count; ++i)
     {
         std::string meta_test = generateSingleMetaTest(input_var_names,
-            meta_input_var_type, meta_family_chain, rw);
+            meta_input_var_type, meta_family_chain, rw, i);
+        meta_tests << "// Meta test " << i << std::endl;
         meta_tests << meta_test << std::endl;
         //meta_tests << std::replace(std::begin(meta_test), std::end(meta_test),
             //"\n", "\n" + indent)
     }
-    std::cout << " === META TESTS" << std::endl;
-    std::cout << meta_tests.str();
+    //std::cout << " === META TESTS" << std::endl;
+    //std::cout << meta_tests.str();
     return meta_tests.str();
 }
 
 std::string
 generateSingleMetaTest(std::vector<std::string> input_var_names,
     std::string meta_input_var_type,
-    const std::vector<std::string>& meta_family_chain, clang::Rewriter& rw)
+    const std::vector<std::string>& meta_family_chain, clang::Rewriter& rw,
+    size_t test_count)
 {
-    size_t index = 0;
     std::stringstream mt_body;
+    // TODO grab correct indent
+    std::string indent = "\t";
+    bool first_decl = true;
     for (std::string meta_family : meta_family_chain)
     {
+        std::string curr_mr_var_name = meta_var_name + std::to_string(test_count);
         std::vector<mrInfo> meta_rel_choices =
             meta_rel_decls.at(std::make_pair(REL_TYPE::RELATION, meta_family));
         mrInfo chosen_mr = meta_rel_choices.at(
             fuzzer::clang::generateRand(0, meta_rel_choices.size() - 1));
-        std::pair<std::string, std::string> rw_meta_rel =
-            concretizeMetaRelation(chosen_mr, index, rw);
-        ++index;
-
+        //std::pair<std::string, std::string> rw_meta_rel =
+        mt_body <<
+            concretizeMetaRelation(chosen_mr, rw, curr_mr_var_name, first_decl);
+        first_decl = false;
+        //mt_body << rw_meta_rel.first << '\n' << indent;
+        //if (first_mr)
+        //{
+            //mt_body << meta_input_var_type << " ";
+        //}
+        //mt_body << curr_mr_var_name << " = " << rw_meta_rel.second << std::endl;
     }
     return mt_body.str();
 }
 
-std::pair<std::string, std::string>
-concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl, size_t test_cnt,
-    clang::Rewriter& rw)
+//std::pair<std::string, std::string>
+std::string
+concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl,
+    clang::Rewriter& rw, std::string return_var_name, bool first_decl)
 {
     std::string rw_body, rw_return;
     clang::Rewriter tmp_rw(rw.getSourceMgr(), rw.getLangOpts());
+    for (const clang::VarDecl* vd : meta_rel_decl.body_vd)
+    {
+        tmp_rw.InsertText(
+            vd->getLocation().getLocWithOffset(vd->getName().size()),
+            std::to_string(mr_vd_rw_index));
+    }
     for (const clang::DeclRefExpr* dre : meta_rel_decl.body_dre)
     {
-        tmp_rw.ReplaceText(dre->getSourceRange(), meta_input_var_names.at(2));
-    }
-    std::cout << " === CONCRETE DONE" << std::endl;
-    rw_body = std::accumulate(
-        std::begin(meta_rel_decl.body_instrs),
-        std::end(meta_rel_decl.body_instrs), std::string(),
-        [&tmp_rw](std::string acc, clang::Stmt* s)
+        if (const clang::ParmVarDecl* pvd_dre = llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl()))
         {
-            const std::string indent = clang::Lexer::getIndentationForLine(
-                s->getBeginLoc(), tmp_rw.getSourceMgr()).str();
-            return acc + '\n' + indent +
-                tmp_rw.getRewrittenText(s->getSourceRange()) + ';';
-        });
-    rw_return = tmp_rw.getRewrittenText(meta_rel_decl.return_body->getSourceRange());
-    std::cout << " INSTRS" << std::endl << rw_body << std::endl;
-    std::cout << " RETURN" << std::endl << rw_return << std::endl;
-    exit(1);
-    return std::make_pair(rw_body, rw_return);
+            tmp_rw.ReplaceText(dre->getSourceRange(), meta_input_var_names.at(2));
+            continue;
+        }
+        else if (const clang::VarDecl* vd_dre = llvm::dyn_cast<clang::VarDecl>(dre->getDecl()))
+        {
+            tmp_rw.InsertText(
+                dre->getLocation().getLocWithOffset(vd_dre->getName().size()),
+                std::to_string(mr_vd_rw_index));
+            continue;
+        }
+        assert(false);
+    }
+
+    std::stringstream rw_str;
+    // TODO Limitation: seems this rewritter thing doesn't like if variables are
+    // used alone; cuts off the difference in length
+    for (clang::Stmt* s : meta_rel_decl.body_instrs)
+    {
+        const std::string indent = clang::Lexer::getIndentationForLine(
+            s->getBeginLoc(), tmp_rw.getSourceMgr()).str();
+        rw_str << '\n' << indent;
+        if (clang::ReturnStmt* rs = llvm::dyn_cast<clang::ReturnStmt>(s))
+        {
+            assert(std::next(rs->child_begin()) == rs->child_end());
+            clang::Stmt* rs_body = *(rs->child_begin());
+            if (first_decl)
+            {
+                rw_str << meta_input_var_type << ' ';
+            }
+            rw_str << return_var_name << " = " <<
+                tmp_rw.getRewrittenText(rs_body->getSourceRange()) << ';';
+        }
+        else
+        {
+            rw_str << tmp_rw.getRewrittenText(s->getSourceRange()) << ';';
+        }
+    }
+    std::cout << rw_str.str() << std::endl;
+    mr_vd_rw_index += 1;
+    return rw_str.str();
+
+    //std::cout << " === CONCRETE DONE" << std::endl;
+    //rw_body = std::accumulate(
+        //std::begin(meta_rel_decl.body_instrs),
+        //std::end(meta_rel_decl.body_instrs), std::string(),
+        //[&tmp_rw](std::string acc, clang::Stmt* s)
+        //{
+            //const std::string indent = clang::Lexer::getIndentationForLine(
+                //s->getBeginLoc(), tmp_rw.getSourceMgr()).str();
+            //if (llvm::dyn_cast<clang::ReturnStmt>(s))
+            //{
+                //return acc + curr_mr_var_name << " = "
+            //}
+            //return acc + '\n' + indent +
+                //tmp_rw.getRewrittenText(s->getSourceRange()) + ';';
+        //});
+    //meta_rel_decl.return_body->dump();
+    //std::cout << tmp_rw.getRewrittenText(meta_rel_decl.return_body->getSourceRange()) << std::endl;
+    //exit(1);
+    //rw_return =
+        //tmp_rw.getRewrittenText(meta_rel_decl.return_body->getSourceRange()) + ';';
+    //return std::make_pair(rw_body, rw_return);
 
     //clang::Rewriter tmp_rw(ctx.getSourceManager(), ctx.getLangOpts());
     //helperFnReplaceInfo replace_info(caller, getBaseParent(caller, ctx));
@@ -124,6 +205,7 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
     }
     assert(!FD->getReturnType().getAsString().compare(meta_input_var_type));
 
+    /* Parse qualified function name */
     std::string fd_name(FD->getQualifiedNameAsString()), delim("::");
     std::vector<std::string> mrDeclName;
     size_t curr = fd_name.find(delim), prv = 0;
@@ -134,6 +216,30 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
         curr = fd_name.find(delim, prv);
     }
     mrDeclName.push_back(fd_name.substr(prv, curr - prv));
+
+    /* Gather instructions and set return instruction */
+    clang::CompoundStmt* cs = llvm::dyn_cast<clang::CompoundStmt>(
+        FD->getBody());
+    assert(cs);
+    for (clang::Stmt* child : cs->children())
+    {
+        //if (clang::ReturnStmt* return_instr_tmp =
+                //llvm::dyn_cast<clang::ReturnStmt>(child))
+        //{
+            //// TODO could handle multiple return instructions
+            ////assert(!this->return_body);
+            ////this->return_body = *(return_instr_tmp->child_begin());
+            ////assert(std::next(return_instr_tmp->child_begin())
+                 ////== return_instr_tmp->child_end());
+            //this->return_instrs.push_back(return_instr_tmp);
+        //}
+        //else
+        //{
+            this->body_instrs.push_back(child);
+        //}
+    }
+
+    /* Set MR identifiers */
     assert(!mrDeclName.at(0).compare("metalib"));
     this->mr_type = mr_type_map.at(mrDeclName.at(1));
     this->mr_family = mrDeclName.at(2);
@@ -185,6 +291,16 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         "metalib"))))))
             .bind("mrDRE"), &mr_dre_logger);
 
+    mr_matcher.addMatcher(
+        clang::ast_matchers::varDecl(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::functionDecl(
+        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::namespaceDecl(
+        clang::ast_matchers::hasName(
+        "metalib"))))))
+            .bind("mrVD"), &mr_dre_logger);
+
     //mr_dre_matcher.addMatcher(
         //clang::ast_matchers::declRefExpr(
         //clang::ast_matchers::hasAncestor(
@@ -212,10 +328,15 @@ metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
 {
     mrInfo new_mr_decl(fd);
     this->mr_dre_matcher.match(*fd, ctx);
-    std::vector<const clang::DeclRefExpr*> new_mr_dres =
-        this->mr_dre_logger.matched_dres;
-    new_mr_decl.body_dre.insert(new_mr_decl.body_dre.end(), new_mr_dres.begin(),
-        new_mr_dres.end());
+    new_mr_decl.body_dre = this->mr_dre_logger.matched_dres;
+    new_mr_decl.body_vd = this->mr_dre_logger.matched_vds;
+
+    //std::vector<const clang::DeclRefExpr*> new_mr_dres =
+        //this->mr_dre_logger.matched_dres;
+    //new_mr_decl.body_dre.insert(new_mr_decl.body_dre.end(), new_mr_dres.begin(),
+        //new_mr_dres.end());
+
+
     std::pair<REL_TYPE, std::string> mr_category(
         new_mr_decl.getType(), new_mr_decl.getFamily());
     if (!meta_rel_decls.count(mr_category))
@@ -264,7 +385,12 @@ metaGeneratorAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 void
 metaGeneratorAction::EndSourceFileAction()
 {
-    //addMetaRels(*this->print_policy);
+    std::error_code ec;
+    int fd;
+    llvm::sys::fs::createTemporaryFile("mtFuzz", "cpp", fd,
+        rewritten_input_file);
+    llvm::raw_fd_ostream rif_rfo(fd, true);
+    rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
 }
 
 std::unique_ptr<clang::ASTConsumer>

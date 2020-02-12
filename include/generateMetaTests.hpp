@@ -18,9 +18,9 @@ mrInfo retrieveRandMrDecl(REL_TYPE mr_type, std::string family);
 std::string generateMetaTests(std::vector<std::string>, std::string,
     const std::string, clang::Rewriter&);
 std::string generateSingleMetaTest(std::vector<std::string>, std::string,
-    const std::vector<std::string>&, clang::Rewriter&);
-std::pair<std::string, std::string> concretizeMetaRelation(helperFnDeclareInfo,
-    size_t, clang::Rewriter&);
+    const std::vector<std::string>&, clang::Rewriter&, size_t);
+std::string concretizeMetaRelation(helperFnDeclareInfo, clang::Rewriter&,
+    std::string, bool);
 
 class testMatcherCallback: public clang::ast_matchers::MatchFinder::MatchCallback
 {
