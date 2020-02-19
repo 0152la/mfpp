@@ -180,16 +180,16 @@ fuzzHelperFuncReplacer::makeReplace(
 void
 fuzzHelperFuncLocator::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
-    if (const clang::CallExpr* ce =
-            Result.Nodes.getNodeAs<clang::CallExpr>("helperFuncInvoke"))
-    {
-        stitch_exprs.emplace_back(ce, getBaseParent(ce, this->ctx));
-    }
-    else if (const clang::CompoundStmt* cs =
+    if (const clang::CompoundStmt* cs =
             Result.Nodes.getNodeAs<clang::CompoundStmt>("mainChild"))
     {
         assert(!main_child);
         main_child = cs;
+    }
+    else if (const clang::CallExpr* ce =
+            Result.Nodes.getNodeAs<clang::CallExpr>("helperFuncInvoke"))
+    {
+        stitch_exprs.emplace_back(ce, getBaseParent(ce, this->ctx));
     }
     else if (const clang::FunctionDecl* fd =
             Result.Nodes.getNodeAs<clang::FunctionDecl>("helperFunc"))
