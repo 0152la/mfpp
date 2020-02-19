@@ -14,24 +14,20 @@
 #include "metaSpecReader.hpp"
 #include "clang_interface.hpp"
 
+mrInfo retrieveRandMrDecl(std::string mr_type, std::string family);
 mrInfo retrieveRandMrDecl(REL_TYPE mr_type, std::string family);
 std::string generateMetaTests(std::vector<std::string>, std::string,
     const std::string, clang::Rewriter&);
 std::string generateSingleMetaTest(std::vector<std::string>, std::string,
     const std::vector<std::string>&, clang::Rewriter&, size_t);
-std::string concretizeMetaRelation(helperFnDeclareInfo, clang::Rewriter&,
-    std::string, bool);
+std::pair<std::string, std::string> concretizeMetaRelation(mrInfo, clang::Rewriter&,
+    std::string, bool, size_t);
+std::string generateRecursiveMRChain(const mrInfo&, std::stringstream&, size_t, size_t, clang::Rewriter&);
 
-class testMatcherCallback: public clang::ast_matchers::MatchFinder::MatchCallback
+class testMainLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
-        virtual void run(const clang::ast_matchers::MatchFinder::MatchResult& Result) override
-        {
-            std::cout << "CALLBACK MATCH" << std::endl;
-            const clang::DeclRefExpr* FD = Result.Nodes.getNodeAs<clang::DeclRefExpr>("fdTest");
-            assert(FD);
-            FD->dump();
-        };
+        virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };
 
 class metaCallsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
@@ -40,15 +36,26 @@ class metaCallsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };
 
+class mrRecursiveLogger: public clang::ast_matchers::MatchFinder::MatchCallback
+{
+    public:
+        std::map<const clang::FunctionDecl*,
+            std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>>>
+            matched_recursive_calls;
+
+        virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
+};
+
 class metaGenerator : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder mr_matcher;
         clang::ast_matchers::MatchFinder mr_dre_matcher;
+        testMainLogger main_logger;
         metaCallsLogger mc_logger;
         metaRelsLogger mr_logger;
         mrDRELogger mr_dre_logger;
-        testMatcherCallback test_mcb;
+        mrRecursiveLogger mr_recursive_logger;
         clang::Rewriter& rw;
         clang::ASTContext& ctx;
 
