@@ -1,6 +1,8 @@
 #include "generateMetaTests.hpp"
 
 static std::vector<const clang::CallExpr*> meta_test_calls;
+static const clang::FunctionDecl* test_main_fd;
+std::string recursive_func_call_name = "placeholder";
 std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
 std::string meta_input_var_type = "";
 std::string mr_vd_suffix = "_mrv";
@@ -93,9 +95,8 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
             meta_rel_decls.at(std::make_pair(REL_TYPE::RELATION, meta_family));
         mrInfo chosen_mr = meta_rel_choices.at(
             fuzzer::clang::generateRand(0, meta_rel_choices.size() - 1));
-        //std::pair<std::string, std::string> rw_meta_rel =
-        mt_body <<
-            concretizeMetaRelation(chosen_mr, rw, curr_mr_var_name, first_decl);
+        std::pair<std::string, std::string> rw_meta_rel =
+            concretizeMetaRelation(chosen_mr, rw, curr_mr_var_name, first_decl, test_count);
         first_decl = false;
         //mt_body << rw_meta_rel.first << '\n' << indent;
         //if (first_mr)
@@ -103,27 +104,35 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
             //mt_body << meta_input_var_type << " ";
         //}
         //mt_body << curr_mr_var_name << " = " << rw_meta_rel.second << std::endl;
+        mt_body << rw_meta_rel.first;
+        rw.InsertText(test_main_fd->getBeginLoc(), rw_meta_rel.second);
+        std::cout << "ONE META TESTS" << std::endl;
+        std::cout << rw_meta_rel.first;
+        std::cout << "ONE RECURSIVE META FUNCTIONS" << std::endl;
+        std::cout << rw_meta_rel.second;
     }
     return mt_body.str();
 }
 
-//std::pair<std::string, std::string>
-std::string
-concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl,
-    clang::Rewriter& rw, std::string return_var_name, bool first_decl)
+std::pair<std::string, std::string>
+//std::string
+concretizeMetaRelation(mrInfo meta_rel_decl,
+    clang::Rewriter& rw, std::string return_var_name, bool first_decl, size_t test_id)
 {
-    std::string rw_body, rw_return;
     clang::Rewriter tmp_rw(rw.getSourceMgr(), rw.getLangOpts());
+    // Disambiguate variable declarations
     for (const clang::VarDecl* vd : meta_rel_decl.body_vd)
     {
         tmp_rw.InsertText(
             vd->getLocation().getLocWithOffset(vd->getName().size()),
             std::to_string(mr_vd_rw_index));
     }
+
+    // Correct references to disambiguated local variable declarations and
+    // passed parameters
     for (const clang::DeclRefExpr* dre : meta_rel_decl.body_dre)
     {
-        if (const clang::ParmVarDecl* pvd_dre = llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl()))
-        {
+        if (const clang::ParmVarDecl* pvd_dre = llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl())) {
             tmp_rw.ReplaceText(dre->getSourceRange(), meta_input_var_names.at(2));
             continue;
         }
@@ -137,7 +146,18 @@ concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl,
         assert(false);
     }
 
-    std::stringstream rw_str;
+    // Perform recursive calls
+    //for (std::pair<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_call_locs :
+            //meta_rel_decl.recursive_calls)
+    //{
+        //for (const clang::CallExpr* ce : recursive_call_locs.second)
+        //{
+            //tmp_rw.ReplaceText(ce->getSourceRange(), "hello!");
+        //}
+    //}
+
+    std::stringstream rw_str, recursive_decl_ss;
+    size_t recursive_id = 0;
     // TODO Limitation: seems this rewritter thing doesn't like if variables are
     // used alone; cuts off the difference in length
     for (clang::Stmt* s : meta_rel_decl.body_instrs)
@@ -145,16 +165,52 @@ concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl,
         const std::string indent = clang::Lexer::getIndentationForLine(
             s->getBeginLoc(), tmp_rw.getSourceMgr()).str();
         rw_str << '\n' << indent;
-        if (clang::ReturnStmt* rs = llvm::dyn_cast<clang::ReturnStmt>(s))
+        if (meta_rel_decl.recursive_calls.count(s))
+        {
+            for (const clang::CallExpr* ce : meta_rel_decl.recursive_calls.at(s))
+            {
+                const clang::FunctionDecl* fd_r = llvm::dyn_cast<clang::FunctionDecl>(ce->getDirectCallee());
+                std::vector<std::string> splits;
+                std::string fd_name(fd_r->getQualifiedNameAsString());
+                std::string delim = "::";
+                size_t prev_pos = 0, next_pos = fd_name.find(delim);
+                while (next_pos != std::string::npos)
+                {
+                    splits.push_back(fd_name.substr(prev_pos, next_pos - prev_pos));
+                    prev_pos = next_pos + delim.length();
+                    next_pos = fd_name.find(delim, prev_pos);
+                }
+                std::string recursive_call =
+                    generateRecursiveMRChain(
+                        retrieveRandMrDecl(splits[1], splits[2]),
+                        recursive_decl_ss, recursive_id, test_id, tmp_rw);
+                recursive_id += 1;
+                //recursive_decl_ss << recursive_call << std::endl;
+                tmp_rw.ReplaceText(ce->getSourceRange(), recursive_call);
+            }
+            rw_str << tmp_rw.getRewrittenText(s->getSourceRange()) << ';';
+        }
+        else if (clang::ReturnStmt* rs = llvm::dyn_cast<clang::ReturnStmt>(s))
         {
             assert(std::next(rs->child_begin()) == rs->child_end());
             clang::Stmt* rs_body = *(rs->child_begin());
-            if (first_decl)
+            std::string rs_body_str = tmp_rw.getRewrittenText(rs_body->getSourceRange());
+            if (return_var_name.empty())
             {
-                rw_str << meta_input_var_type << ' ';
+                if (first_decl)
+                {
+                    rw_str << meta_input_var_type << ' ';
+                }
+                rw_str << return_var_name << " = " << rs_body_str << ';';
             }
-            rw_str << return_var_name << " = " <<
-                tmp_rw.getRewrittenText(rs_body->getSourceRange()) << ';';
+            else
+            {
+                //assert(calling_stmt);
+                //rw_str << tmp_rw.getRewrittenText(calling_stmt->getSourceRange());
+                //
+                //tmp_rw.ReplaceText(calling_expr->getSourceRange(), rs_body_str);
+                //rw_str << getRewrittenText(calling_stmt->getSourceRange());
+            }
         }
         else
         {
@@ -163,38 +219,47 @@ concretizeMetaRelation(helperFnDeclareInfo meta_rel_decl,
     }
     std::cout << rw_str.str() << std::endl;
     mr_vd_rw_index += 1;
-    return rw_str.str();
+    return std::make_pair<std::string, std::string>(rw_str.str(), recursive_decl_ss.str());
+}
 
-    //std::cout << " === CONCRETE DONE" << std::endl;
-    //rw_body = std::accumulate(
-        //std::begin(meta_rel_decl.body_instrs),
-        //std::end(meta_rel_decl.body_instrs), std::string(),
-        //[&tmp_rw](std::string acc, clang::Stmt* s)
-        //{
-            //const std::string indent = clang::Lexer::getIndentationForLine(
-                //s->getBeginLoc(), tmp_rw.getSourceMgr()).str();
-            //if (llvm::dyn_cast<clang::ReturnStmt>(s))
-            //{
-                //return acc + curr_mr_var_name << " = "
-            //}
-            //return acc + '\n' + indent +
-                //tmp_rw.getRewrittenText(s->getSourceRange()) + ';';
-        //});
-    //meta_rel_decl.return_body->dump();
-    //std::cout << tmp_rw.getRewrittenText(meta_rel_decl.return_body->getSourceRange()) << std::endl;
-    //exit(1);
-    //rw_return =
-        //tmp_rw.getRewrittenText(meta_rel_decl.return_body->getSourceRange()) + ';';
-    //return std::make_pair(rw_body, rw_return);
-
-    //clang::Rewriter tmp_rw(ctx.getSourceManager(), ctx.getLangOpts());
-    //helperFnReplaceInfo replace_info(caller, getBaseParent(caller, ctx));
-    //std::pair<std::string, std::string> replace_strs =
-        //meta_rel_decl.getSplitWithReplacements(
-            //replace_info.concrete_params, tmp_rw, test_cnt);
-
-    //std::cout << replace_strs.first << std::endl;
-    //return replace_strs.first;
+std::string
+generateRecursiveMRChain(const mrInfo& recursive_mr_decl,
+    std::stringstream& recursive_decl_ss, size_t index, size_t test_id, clang::Rewriter& tmp_rw)
+{
+    size_t recursive_id = index;
+    for (clang::Stmt* s : recursive_mr_decl.body_instrs)
+    {
+        if (recursive_mr_decl.recursive_calls.count(s))
+        {
+            for (const clang::CallExpr* ce : recursive_mr_decl.recursive_calls.at(s))
+            {
+                const clang::FunctionDecl* fd_r = llvm::dyn_cast<clang::FunctionDecl>(ce->getDirectCallee());
+                std::vector<std::string> splits;
+                std::string fd_name(fd_r->getQualifiedNameAsString());
+                std::string delim = "::";
+                size_t prev_pos = 0, next_pos = fd_name.find(delim);
+                while (next_pos != std::string::npos)
+                {
+                    splits.push_back(fd_name.substr(prev_pos, next_pos - prev_pos));
+                    prev_pos = next_pos + delim.length();
+                    next_pos = fd_name.find(delim, prev_pos);
+                }
+                std::string recursive_call =
+                    generateRecursiveMRChain(
+                        retrieveRandMrDecl(splits[1], splits[2]),
+                            recursive_decl_ss, recursive_id, test_id, tmp_rw);
+                recursive_id += 1;
+                //recursive_decl_ss << recursive_call << std::endl;
+                tmp_rw.ReplaceText(ce->getSourceRange(), recursive_call);
+            }
+        }
+        //recursive_decl_ss << tmp_rw.getRewrittenText(s->getSourceRange()) << ';';
+    }
+    std::string renamed_recursive_mr = recursive_mr_decl.mr_name +
+        std::to_string(test_id) + "_" + std::to_string(index);
+    tmp_rw.ReplaceText(recursive_mr_decl.base_func->getNameInfo().getSourceRange(), renamed_recursive_mr);
+    recursive_decl_ss << tmp_rw.getRewrittenText(recursive_mr_decl.base_func->getSourceRange()) << std::endl;
+    return renamed_recursive_mr;
 }
 
 mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
@@ -223,20 +288,7 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
     assert(cs);
     for (clang::Stmt* child : cs->children())
     {
-        //if (clang::ReturnStmt* return_instr_tmp =
-                //llvm::dyn_cast<clang::ReturnStmt>(child))
-        //{
-            //// TODO could handle multiple return instructions
-            ////assert(!this->return_body);
-            ////this->return_body = *(return_instr_tmp->child_begin());
-            ////assert(std::next(return_instr_tmp->child_begin())
-                 ////== return_instr_tmp->child_end());
-            //this->return_instrs.push_back(return_instr_tmp);
-        //}
-        //else
-        //{
-            this->body_instrs.push_back(child);
-        //}
+        this->body_instrs.push_back(child);
     }
 
     /* Set MR identifiers */
@@ -247,10 +299,34 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
 }
 
 mrInfo
+retrieveRandMrDecl(std::string mr_type_str, std::string family)
+{
+    if (!mr_type_str.compare("generators"))
+    {
+        return retrieveRandMrDecl(REL_TYPE::GENERATOR, family);
+    }
+    if (!mr_type_str.compare("relations"))
+    {
+        return retrieveRandMrDecl(REL_TYPE::RELATION, family);
+    }
+    assert(false);
+}
+
+mrInfo
 retrieveRandMrDecl(REL_TYPE mr_type, std::string family)
 {
     std::vector<mrInfo> matchingDecls = meta_rel_decls.at(std::make_pair(mr_type, family));
     return matchingDecls.at(fuzzer::clang::generateRand(0, matchingDecls.size() - 1));
+}
+
+void
+testMainLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
+{
+    const clang::FunctionDecl* fd =
+            Result.Nodes.getNodeAs<clang::FunctionDecl>("testMain");
+    assert(fd);
+    assert(!test_main_fd);
+    test_main_fd = fd;
 }
 
 void
@@ -262,9 +338,45 @@ metaCallsLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result
     meta_test_calls.push_back(ce);
 }
 
+void
+mrRecursiveLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
+{
+    const clang::FunctionDecl* fd =
+        Result.Nodes.getNodeAs<clang::FunctionDecl>("mrFuncDecl");
+    const clang::CallExpr* ce =
+        Result.Nodes.getNodeAs<clang::CallExpr>("mrRecursiveCall");
+    const clang::Stmt* s =
+        Result.Nodes.getNodeAs<clang::Stmt>("mrRecursiveCallStmt");
+    assert(fd);
+    fd->dump();
+    if (s)
+    {
+        s->dump();
+        assert(ce);
+        ce->dump();
+        if (!this->matched_recursive_calls.count(fd))
+        {
+            this->matched_recursive_calls.emplace(
+                std::make_pair(fd,
+                    std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>>()));
+        }
+        if (!this->matched_recursive_calls.at(fd).count(s))
+        {
+            this->matched_recursive_calls.at(fd).emplace(
+                std::make_pair(s, std::vector<const clang::CallExpr*>()));
+        }
+        this->matched_recursive_calls.at(fd).at(s).push_back(ce);
+    }
+}
+
 metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
     rw(_rw), ctx(_ctx)
 {
+    mr_matcher.addMatcher(
+        clang::ast_matchers::functionDecl(
+        clang::ast_matchers::isMain())
+            .bind("testMain"), &main_logger);
+
     mr_matcher.addMatcher(
         clang::ast_matchers::callExpr(
         clang::ast_matchers::callee(
@@ -301,15 +413,43 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         "metalib"))))))
             .bind("mrVD"), &mr_dre_logger);
 
-    //mr_dre_matcher.addMatcher(
-        //clang::ast_matchers::declRefExpr(
+    //mr_matcher.addMatcher(
+        //clang::ast_matchers::callExpr(
+        //clang::ast_matchers::allOf(
+        //clang::ast_matchers::callee(
+        //clang::ast_matchers::functionDecl(
+        //clang::ast_matchers::hasName(
+            //recursive_func_call_name))),
         //clang::ast_matchers::hasAncestor(
-        //clang::ast_matchers::functionDecl()))
-            //.bind("mrDRE"), &mr_dre_logger);
+        //clang::ast_matchers::functionDecl(
+        //clang::ast_matchers::hasAncestor(
+        //clang::ast_matchers::namespaceDecl(
+        //clang::ast_matchers::hasName(
+        //"metalib"))))
+            //.bind("mrFuncDecl")),
+        //clang::ast_))
+            //.bind("mrRecursiveCall"), &mr_recursive_logger);
 
-    //mr_dre_matcher.addMatcher(
-        //clang::ast_matchers::declRefExpr()
-            //.bind("fdTest"), &test_mcb);
+    mr_matcher.addMatcher(
+        clang::ast_matchers::compoundStmt(
+        clang::ast_matchers::allOf(
+            clang::ast_matchers::hasAnySubstatement(
+            clang::ast_matchers::stmt(
+            clang::ast_matchers::hasDescendant(
+            clang::ast_matchers::callExpr(
+            clang::ast_matchers::callee(
+            clang::ast_matchers::functionDecl(
+            clang::ast_matchers::hasName(
+            recursive_func_call_name))))
+                .bind("mrRecursiveCall")))
+                .bind("mrRecursiveCallStmt")),
+            clang::ast_matchers::hasAncestor(
+            clang::ast_matchers::functionDecl(
+            clang::ast_matchers::hasAncestor(
+            clang::ast_matchers::namespaceDecl(
+            clang::ast_matchers::hasName(
+            "metalib"))))
+                .bind("mrFuncDecl")))), &mr_recursive_logger);
 }
 
 void
@@ -318,6 +458,10 @@ metaGenerator::HandleTranslationUnit(clang::ASTContext& ctx)
     mr_matcher.matchAST(ctx);
     for (const clang::FunctionDecl* fd : this->mr_logger.matched_fds)
     {
+        if (fd->getName().equals(recursive_func_call_name))
+        {
+            continue;
+        }
         this->logMetaRelDecl(fd);
     }
     this->expandMetaTests();
@@ -330,6 +474,13 @@ metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
     this->mr_dre_matcher.match(*fd, ctx);
     new_mr_decl.body_dre = this->mr_dre_logger.matched_dres;
     new_mr_decl.body_vd = this->mr_dre_logger.matched_vds;
+    if (this->mr_recursive_logger.matched_recursive_calls.count(fd))
+    {
+        new_mr_decl.recursive_calls =
+            this->mr_recursive_logger.matched_recursive_calls.at(fd);
+    }
+    //new_mr_decl.calling_stmt =
+    //new_mr_decl.calling_expr =
 
     //std::vector<const clang::DeclRefExpr*> new_mr_dres =
         //this->mr_dre_logger.matched_dres;

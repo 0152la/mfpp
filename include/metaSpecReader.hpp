@@ -22,12 +22,12 @@ enum REL_TYPE
 
 class mrInfo: public helperFnDeclareInfo
 {
-    private:
+    public:
         REL_TYPE mr_type;
         std::string mr_name;
         std::string mr_family;
+        std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_calls;
 
-    public:
         mrInfo(const clang::FunctionDecl* _fn);
 
         bool operator<(const mrInfo& other) const

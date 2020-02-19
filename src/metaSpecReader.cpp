@@ -8,8 +8,8 @@ mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
     if (const clang::VarDecl* VD = Result.Nodes.getNodeAs<clang::VarDecl>("mrVD"))
     {
-        std::cout << "VD DUMP" << std::endl;
-        VD->dump();
+        //std::cout << "VD DUMP" << std::endl;
+        //VD->dump();
         this->matched_vds.push_back(VD);
         return;
     }
@@ -19,8 +19,8 @@ mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         if (llvm::dyn_cast<clang::ParmVarDecl>(DRE->getDecl()) ||
                 llvm::dyn_cast<clang::VarDecl>(DRE->getDecl()))
         {
-            std::cout << "DRE DUMP" << std::endl;
-            DRE->dump();
+            //std::cout << "DRE DUMP" << std::endl;
+            //DRE->dump();
             this->matched_dres.push_back(DRE);
         }
         return;
