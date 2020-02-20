@@ -178,15 +178,18 @@ fuzzHelperFuncReplacer::makeReplace(
 }
 
 void
+fuzzHelperMainLocator::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
+{
+    const clang::CompoundStmt* cs =
+            Result.Nodes.getNodeAs<clang::CompoundStmt>("mainChild");
+    assert(!main_child);
+    main_child = cs;
+}
+
+void
 fuzzHelperFuncLocator::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
-    if (const clang::CompoundStmt* cs =
-            Result.Nodes.getNodeAs<clang::CompoundStmt>("mainChild"))
-    {
-        assert(!main_child);
-        main_child = cs;
-    }
-    else if (const clang::CallExpr* ce =
+    if (const clang::CallExpr* ce =
             Result.Nodes.getNodeAs<clang::CallExpr>("helperFuncInvoke"))
     {
         stitch_exprs.emplace_back(ce, getBaseParent(ce, this->ctx));
@@ -249,17 +252,18 @@ fuzzHelperFuncStitch::fuzzHelperFuncStitch(clang::Rewriter& _rw,
             .bind("helperFunc")))
             .bind("helperFuncDRE"), &locator);
 
-    matcher.addMatcher(
+    main_matcher.addMatcher(
         clang::ast_matchers::compoundStmt(
         clang::ast_matchers::hasParent(
         clang::ast_matchers::functionDecl(
         clang::ast_matchers::isMain())))
-            .bind("mainChild"), &locator);
+            .bind("mainChild"), &main_locator);
 }
 
 void
 fuzzHelperFuncStitch::HandleTranslationUnit(clang::ASTContext& ctx)
 {
+    main_matcher.matchAST(ctx);
     matcher.matchAST(ctx);
     replacer.makeReplace(stitch_exprs);
 }

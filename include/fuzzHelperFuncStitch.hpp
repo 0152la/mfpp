@@ -56,6 +56,13 @@ class fuzzHelperFuncReplacer
         void makeReplace(std::vector<helperFnReplaceInfo>&) const;
 };
 
+class fuzzHelperMainLocator : public clang::ast_matchers::MatchFinder::MatchCallback
+{
+    public:
+        virtual void
+        run(const clang::ast_matchers::MatchFinder::MatchResult&);
+};
+
 class fuzzHelperFuncLocator : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     private:
@@ -78,10 +85,12 @@ class fuzzHelperFuncLocator : public clang::ast_matchers::MatchFinder::MatchCall
 class fuzzHelperFuncStitch : public clang::ASTConsumer
 {
     private:
+	fuzzHelperMainLocator main_locator;
         fuzzHelperFuncLocator locator;
         fuzzHelperFuncReplacer replacer;
 
         clang::ast_matchers::MatchFinder matcher;
+        clang::ast_matchers::MatchFinder main_matcher;
         clang::Rewriter& rw;
 
     public:
