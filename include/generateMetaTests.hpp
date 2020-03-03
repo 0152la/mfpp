@@ -44,12 +44,6 @@ std::string generateMetaTests(std::vector<std::string>, std::string,
 std::string generateSingleMetaTest(std::vector<std::string>, std::string,
     const std::vector<std::string>&, clang::Rewriter&, size_t);
 
-//std::pair<std::string, std::string> concretizeMetaRelation(mrInfo,
-    //std::vector<std::string>&, clang::Rewriter&, std::string, bool, size_t, size_t&);
-////std::string generateRecursiveMRChain(const mrInfo&, std::stringstream&, size_t, size_t, clang::Rewriter&);
-//std::string makeMRFuncCall(mrInfo, size_t, size_t, std::vector<std::string>&, std::vector<std::string>&, bool = false);
-//void makeRecursiveFunctionCalls(mrInfo, clang::Rewriter&, std::stringstream&, size_t, size_t&, std::vector<std::string>);
-
 std::pair<std::string, std::string> concretizeMetaRelation(mrGenInfo&);
 std::string makeMRFuncCall(mrGenInfo&, std::vector<std::string> = std::vector<std::string>(), bool = false);
 void makeRecursiveFunctionCalls(mrGenInfo&, std::stringstream&);
