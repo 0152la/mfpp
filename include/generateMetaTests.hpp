@@ -14,17 +14,45 @@
 #include "metaSpecReader.hpp"
 #include "clang_interface.hpp"
 
-mrInfo retrieveRandMrDecl(std::string mr_type, std::string family);
-mrInfo retrieveRandMrDecl(REL_TYPE mr_type, std::string family);
+struct mrGenInfo
+{
+    mrInfo mr_decl;
+    std::string curr_mr_var_name;
+    std::vector<std::string> input_var_names;
+    size_t depth = 0, test_idx, recursive_idx = 0;
+    bool first_decl = true;
+    const clang::Rewriter& rw;
+
+    mrGenInfo(mrInfo _mr_decl, std::string _curr_mr_var_name,
+        std::vector<std::string> _input_var_names, size_t _test_idx,
+        const clang::Rewriter& _rw) :
+        mr_decl(_mr_decl), curr_mr_var_name(_curr_mr_var_name),
+        input_var_names(_input_var_names), test_idx(_test_idx), rw(_rw) {};
+
+    mrGenInfo(std::vector<std::string> _input_var_names, size_t _test_idx,
+        const clang::Rewriter& _rw) :
+        mrGenInfo(mrInfo::empty(), "", _input_var_names, _test_idx, _rw) {};
+
+    void setMR(mrInfo, std::string = "");
+};
+
+mrInfo retrieveRandMrDecl(std::string, std::string, bool = false);
+mrInfo retrieveRandMrDecl(REL_TYPE, std::string, bool = false);
+
 std::string generateMetaTests(std::vector<std::string>, std::string,
     const std::string, clang::Rewriter&);
 std::string generateSingleMetaTest(std::vector<std::string>, std::string,
     const std::vector<std::string>&, clang::Rewriter&, size_t);
-std::pair<std::string, std::string> concretizeMetaRelation(mrInfo,
-    std::vector<std::string>&, clang::Rewriter&, std::string, bool, size_t, size_t&);
-std::string generateRecursiveMRChain(const mrInfo&, std::stringstream&, size_t, size_t, clang::Rewriter&);
-std::string makeMRFuncCall(mrInfo, size_t, size_t, std::vector<std::string>&, bool = false);
-void makeRecursiveFunctionCalls(mrInfo, clang::Rewriter&, std::stringstream&, size_t, size_t&, std::vector<std::string>);
+
+//std::pair<std::string, std::string> concretizeMetaRelation(mrInfo,
+    //std::vector<std::string>&, clang::Rewriter&, std::string, bool, size_t, size_t&);
+////std::string generateRecursiveMRChain(const mrInfo&, std::stringstream&, size_t, size_t, clang::Rewriter&);
+//std::string makeMRFuncCall(mrInfo, size_t, size_t, std::vector<std::string>&, std::vector<std::string>&, bool = false);
+//void makeRecursiveFunctionCalls(mrInfo, clang::Rewriter&, std::stringstream&, size_t, size_t&, std::vector<std::string>);
+
+std::pair<std::string, std::string> concretizeMetaRelation(mrGenInfo&);
+std::string makeMRFuncCall(mrGenInfo&, std::vector<std::string> = std::vector<std::string>(), bool = false);
+void makeRecursiveFunctionCalls(mrGenInfo&, std::stringstream&);
 
 class testMainLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {

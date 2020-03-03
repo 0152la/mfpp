@@ -24,6 +24,7 @@ class mrInfo: public helperFnDeclareInfo
 {
     public:
         REL_TYPE mr_type;
+        bool is_base_func = true;
         std::string mr_name;
         std::string mr_family;
         std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_calls;
@@ -38,6 +39,8 @@ class mrInfo: public helperFnDeclareInfo
 
         REL_TYPE getType() const { return this->mr_type; };
         std::string getFamily() const { return this->mr_family; };
+
+        static mrInfo empty() { return mrInfo(nullptr); };
 };
 
 class mrDRELogger: public clang::ast_matchers::MatchFinder::MatchCallback

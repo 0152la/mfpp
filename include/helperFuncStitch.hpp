@@ -34,6 +34,8 @@ class helperFnDeclareInfo
         getSplitWithReplacements(
             std::map<const clang::ParmVarDecl*, const clang::Expr*>,
             clang::Rewriter&, size_t);
+
+    bool is_empty() { return this->base_func == nullptr; };
 };
 
 class helperFnReplaceInfo
