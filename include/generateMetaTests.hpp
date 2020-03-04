@@ -16,24 +16,25 @@
 
 struct mrGenInfo
 {
-    mrInfo mr_decl;
+    mrInfo* mr_decl;
     std::string curr_mr_var_name;
     std::vector<std::string> input_var_names;
     size_t depth = 0, test_idx, recursive_idx = 0;
     bool first_decl = true;
     const clang::Rewriter& rw;
 
-    mrGenInfo(mrInfo _mr_decl, std::string _curr_mr_var_name,
+    mrGenInfo(mrInfo* _mr_decl, std::string _curr_mr_var_name,
         std::vector<std::string> _input_var_names, size_t _test_idx,
         const clang::Rewriter& _rw) :
         mr_decl(_mr_decl), curr_mr_var_name(_curr_mr_var_name),
         input_var_names(_input_var_names), test_idx(_test_idx), rw(_rw) {};
 
-    mrGenInfo(std::vector<std::string> _input_var_names, size_t _test_idx,
+    mrGenInfo(std::string _curr_mr_var_name,
+        std::vector<std::string> _input_var_names, size_t _test_idx,
         const clang::Rewriter& _rw) :
-        mrGenInfo(mrInfo::empty(), "", _input_var_names, _test_idx, _rw) {};
+        mrGenInfo(nullptr, _curr_mr_var_name, _input_var_names, _test_idx, _rw) {};
 
-    void setMR(mrInfo, std::string = "");
+    void setMR(mrInfo*);
 };
 
 mrInfo retrieveRandMrDecl(std::string, std::string, bool = false);
@@ -63,9 +64,10 @@ class metaCallsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 class mrRecursiveLogger: public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
-        std::map<const clang::FunctionDecl*,
-            std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>>>
-            matched_recursive_calls;
+        std::map<const clang::FunctionDecl*, std::set<const clang::CallExpr*>> matched_recursive_calls;
+        //std::map<const clang::FunctionDecl*,
+            //std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>>>
+            //matched_recursive_calls;
 
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };

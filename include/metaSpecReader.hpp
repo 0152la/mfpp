@@ -27,7 +27,8 @@ class mrInfo: public helperFnDeclareInfo
         bool is_base_func = true;
         std::string mr_name;
         std::string mr_family;
-        std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_calls;
+        //std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_calls;
+        std::set<const clang::CallExpr*> recursive_calls;
 
         mrInfo(const clang::FunctionDecl* _fn);
 
