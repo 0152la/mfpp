@@ -6,11 +6,18 @@ extern std::string meta_input_var_type;
 void
 mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
 {
+    const clang::FunctionDecl* FD = Result.Nodes.getNodeAs<clang::FunctionDecl>("mrFuncDecl");
+    assert(FD);
+    if (!this->matched_vds.count(FD))
+    {
+        this->matched_vds.emplace(std::make_pair(FD, std::vector<const clang::VarDecl*>()));
+        this->matched_dres.emplace(std::make_pair(FD, std::vector<const clang::DeclRefExpr*>()));
+    }
     if (const clang::VarDecl* VD = Result.Nodes.getNodeAs<clang::VarDecl>("mrVD"))
     {
         //std::cout << "VD DUMP" << std::endl;
         //VD->dump();
-        this->matched_vds.push_back(VD);
+        this->matched_vds.at(FD).push_back(VD);
         return;
     }
     else if (const clang::DeclRefExpr* DRE =
@@ -21,7 +28,7 @@ mrDRELogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
         {
             //std::cout << "DRE DUMP" << std::endl;
             //DRE->dump();
-            this->matched_dres.push_back(DRE);
+            this->matched_dres.at(FD).push_back(DRE);
         }
         return;
     }
@@ -69,7 +76,7 @@ metaRelsReader::logMetaRelDecl(const clang::FunctionDecl* fd)
     mrInfo new_mr_decl(fd);
     this->mr_dre_matcher.match(*fd, ctx);
     std::vector<const clang::DeclRefExpr*> new_mr_dres =
-        this->dre_logger.matched_dres;
+        this->dre_logger.matched_dres.at(fd);
     new_mr_decl.body_dre.insert(new_mr_dres.end(), new_mr_dres.begin(),
         new_mr_dres.end());
     std::pair<REL_TYPE, std::string> mr_category(

@@ -131,7 +131,8 @@ concretizeMetaRelation(mrGenInfo& mgi)
 }
 
 std::string
-makeMRFuncCall(mrGenInfo& mgi, std::vector<std::string> base_params, bool recursive)
+makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
+    std::vector<std::string> base_params, bool recursive)
 {
     std::stringstream mr_func_call;
     std::string new_func_call_name =
@@ -143,6 +144,7 @@ makeMRFuncCall(mrGenInfo& mgi, std::vector<std::string> base_params, bool recurs
     {
         if (recursive)
         {
+            assert(calling_mr);
             //mr_func_call << pvd->getNameAsString() << std::endl;
             if (param_idx < base_params.size())
             {
@@ -150,11 +152,13 @@ makeMRFuncCall(mrGenInfo& mgi, std::vector<std::string> base_params, bool recurs
             }
             else
             {
-                mr_func_call << pvd->getNameAsString();
+                mr_func_call << retrieveMRDeclVar(calling_mr, pvd->getType().getTypePtr());
+                //mr_func_call << pvd->getNameAsString();
             }
         }
         else
         {
+            assert(!calling_mr);
             const clang::QualType pvt =
                 pvd->getType()->isReferenceType()
                 ? pvd->getType()->getPointeeType()
@@ -241,7 +245,7 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
         mrInfo* curr_mr = mgi.mr_decl;
         mgi.setMR(&recursive_mr_func);
         tmp_rw.ReplaceText(ce->getSourceRange(),
-            makeMRFuncCall(mgi, mr_call_params, true));
+            makeMRFuncCall(mgi, curr_mr, mr_call_params, true));
 
         mgi.depth += 1;
         makeRecursiveFunctionCalls(mgi, funcs_ss);
@@ -296,6 +300,19 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
     this->mr_type = mr_type_map.at(mrDeclName.at(1));
     this->mr_family = mrDeclName.at(2);
     this->mr_name = mrDeclName.at(3);
+}
+
+std::string
+retrieveMRDeclVar(mrInfo* mri, const clang::Type* var_type)
+{
+    std::vector<const clang::VarDecl*> vars = mri->body_vd;
+    vars.insert(std::end(vars), mri->base_func->param_begin(), mri->base_func->param_end());
+    vars.erase(std::remove_if(std::begin(vars), std::end(vars),
+        [&var_type](const clang::VarDecl* var)
+        {
+            return var->getType().getTypePtr() != var_type;
+        }));
+    return vars.at(fuzzer::clang::generateRand(0, vars.size() - 1))->getNameAsString();
 }
 
 mrInfo
@@ -432,7 +449,8 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         clang::ast_matchers::hasAncestor(
         clang::ast_matchers::namespaceDecl(
         clang::ast_matchers::hasName(
-        "metalib"))))))
+        "metalib"))))
+            .bind("mrFuncDecl")))
             .bind("mrDRE"), &mr_dre_logger);
 
     mr_matcher.addMatcher(
@@ -442,7 +460,8 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
         clang::ast_matchers::hasAncestor(
         clang::ast_matchers::namespaceDecl(
         clang::ast_matchers::hasName(
-        "metalib"))))))
+        "metalib"))))
+            .bind("mrFuncDecl")))
             .bind("mrVD"), &mr_dre_logger);
 
     mr_matcher.addMatcher(
@@ -503,8 +522,8 @@ metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
 {
     mrInfo new_mr_decl(fd);
     this->mr_dre_matcher.match(*fd, ctx);
-    new_mr_decl.body_dre = this->mr_dre_logger.matched_dres;
-    new_mr_decl.body_vd = this->mr_dre_logger.matched_vds;
+    new_mr_decl.body_dre = this->mr_dre_logger.matched_dres.at(fd);
+    new_mr_decl.body_vd = this->mr_dre_logger.matched_vds.at(fd);
     if (this->mr_recursive_logger.matched_recursive_calls.count(fd))
     {
         new_mr_decl.recursive_calls =

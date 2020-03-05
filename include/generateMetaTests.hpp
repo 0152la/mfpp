@@ -37,6 +37,7 @@ struct mrGenInfo
     void setMR(mrInfo*);
 };
 
+std::string retrieveMRDeclVar(mrInfo*, const clang::Type*);
 mrInfo retrieveRandMrDecl(std::string, std::string, bool = false);
 mrInfo retrieveRandMrDecl(REL_TYPE, std::string, bool = false);
 
@@ -46,7 +47,8 @@ std::string generateSingleMetaTest(std::vector<std::string>, std::string,
     const std::vector<std::string>&, clang::Rewriter&, size_t);
 
 std::pair<std::string, std::string> concretizeMetaRelation(mrGenInfo&);
-std::string makeMRFuncCall(mrGenInfo&, std::vector<std::string> = std::vector<std::string>(), bool = false);
+std::string makeMRFuncCall(mrGenInfo&, mrInfo* = nullptr,
+    std::vector<std::string> = std::vector<std::string>(), bool = false);
 void makeRecursiveFunctionCalls(mrGenInfo&, std::stringstream&);
 
 class testMainLogger : public clang::ast_matchers::MatchFinder::MatchCallback
