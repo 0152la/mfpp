@@ -18,6 +18,7 @@ extern std::string meta_input_var_prefix;
 extern std::string set_meta_tests_path;
 
 static std::vector<fuzzNewCall> fuzz_new_vars;
+static std::vector<std::pair<const clang::CallExpr*, const clang::Stmt*>> mr_fuzz_calls;
 static std::vector<stmtRedeclTemplateVars> stmt_rewrite_map;
 std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
     declared_fuzz_vars(&fuzzVarDecl::compare);
@@ -321,6 +322,33 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
     }
 }
 
+void fuzzExpander::expandLoggedNewMRVars(clang::Rewriter& rw, clang::ASTContext& ctx)
+{
+    std::set<std::pair<std::string, std::string>> mr_vars;
+
+    // Add MR parameter vars
+    fuzzer::clang::resetApiObjs(mr_vars);
+    for (std::pair<const clang::CallExpr*, const clang::Stmt*> mrfc : mr_fuzz_calls)
+    {
+        const clang::CallExpr* ce = mrfc.first;
+        const clang::Stmt* base_stmt = mrfc.second;
+
+        const llvm::StringRef indent =
+            clang::Lexer::getIndentationForLine(base_stmt->getBeginLoc(),
+                rw.getSourceMgr());
+        const clang::DeclRefExpr* ce_dre =
+            llvm::dyn_cast<clang::DeclRefExpr>(
+                llvm::dyn_cast<clang::ImplicitCastExpr>(ce->getCallee())->getSubExpr());
+        assert(ce_dre);
+        std::pair<std::string, std::string> fuzzer_output =
+            fuzzer::clang::generateObjectInstructions(
+                ce_dre->template_arguments()[0].getArgument().getAsType().getAsString(), "\t");
+        rw.InsertText(base_stmt->getBeginLoc(), fuzzer_output.first + indent.str());
+        rw.ReplaceText(clang::SourceRange(ce->getBeginLoc(),
+            ce->getEndLoc()), fuzzer_output.second);
+    }
+
+}
 
 //==============================================================================
 
@@ -346,6 +374,17 @@ newVariableFuzzerParser::run(
         fnc.reset_fuzz_var_decl = true;
     }
     fuzz_new_vars.push_back(fnc);
+}
+
+void
+mrNewVariableFuzzerLogger::run(
+    const clang::ast_matchers::MatchFinder::MatchResult& Result)
+{
+    const clang::CallExpr* ce = Result.Nodes.getNodeAs<clang::CallExpr>("fuzzRef");
+    assert(ce);
+    const clang::Stmt* base_stmt = Result.Nodes.getNodeAs<clang::Stmt>("baseStmt");
+    assert(base_stmt);
+    mr_fuzz_calls.push_back(std::make_pair(ce, base_stmt));
 }
 
 //==============================================================================
@@ -389,6 +428,30 @@ newVariableFuzzerMatcher::newVariableFuzzerMatcher(clang::Rewriter& _rw) :
                 "fuzz::fuzz_new"))))
                     .bind("fuzzRef"))) )
                     .bind("baseStmt"), &parser);
+
+            matcher.addMatcher(
+                clang::ast_matchers::callExpr(
+                clang::ast_matchers::allOf(
+                clang::ast_matchers::unless(
+                clang::ast_matchers::hasAncestor(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::isMain()))),
+
+                clang::ast_matchers::hasAncestor(
+                clang::ast_matchers::stmt(
+                clang::ast_matchers::hasParent(
+                clang::ast_matchers::compoundStmt(
+                clang::ast_matchers::hasParent(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::hasParent(
+                clang::ast_matchers::translationUnitDecl()))))))
+                    .bind("baseStmt")),
+
+                clang::ast_matchers::callee(
+                clang::ast_matchers::functionDecl(
+                clang::ast_matchers::hasName(
+                "fuzz::fuzz_new")))))
+                    .bind("fuzzRef"), &mr_fuzzer_logger);
 
             matcher.addMatcher(
                 clang::ast_matchers::callExpr(

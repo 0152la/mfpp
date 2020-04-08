@@ -140,8 +140,8 @@ class fuzzExpander
             std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>,
             size_t);
 
-        static void
-        expandLoggedNewVars(clang::Rewriter&, clang::ASTContext&);
+        static void expandLoggedNewVars(clang::Rewriter&, clang::ASTContext&);
+        static void expandLoggedNewMRVars(clang::Rewriter&, clang::ASTContext&);
 };
 
 class newVariableFuzzerParser : public clang::ast_matchers::MatchFinder::MatchCallback
@@ -163,12 +163,22 @@ class newVariableStatementRemover : public clang::ast_matchers::MatchFinder::Mat
         run(const clang::ast_matchers::MatchFinder::MatchResult&);
 };
 
+class mrNewVariableFuzzerLogger : public clang::ast_matchers::MatchFinder::MatchCallback
+{
+    public:
+        mrNewVariableFuzzerLogger() {};
+
+        virtual void
+        run(const clang::ast_matchers::MatchFinder::MatchResult&);
+};
+
 class newVariableFuzzerMatcher : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder matcher;
         newVariableFuzzerParser parser;
         newVariableStatementRemover remover;
+        mrNewVariableFuzzerLogger mr_fuzzer_logger;
 
     public:
         newVariableFuzzerMatcher(clang::Rewriter&);
@@ -194,6 +204,7 @@ class parseFuzzConstructs : public clang::ASTConsumer
         {
             newVarFuzzerMtch.matchAST(ctx);
             fuzzExpander::expandLoggedNewVars(rw, ctx);
+            fuzzExpander::expandLoggedNewMRVars(rw, ctx);
         }
 };
 

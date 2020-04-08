@@ -18,6 +18,7 @@ enum REL_TYPE
 {
     GENERATOR,
     RELATION,
+    CHECK,
 };
 
 class mrInfo: public helperFnDeclareInfo
@@ -25,8 +26,8 @@ class mrInfo: public helperFnDeclareInfo
     public:
         REL_TYPE mr_type;
         bool is_base_func = true;
-        std::string mr_name;
-        std::string mr_family;
+        std::string mr_name = "";
+        std::string mr_family = "";
         //std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_calls;
         std::set<const clang::CallExpr*> recursive_calls;
 
@@ -41,6 +42,8 @@ class mrInfo: public helperFnDeclareInfo
         REL_TYPE getType() const { return this->mr_type; };
         std::string getFamily() const { return this->mr_family; };
 
+        bool isCheck() const { return this->mr_type == CHECK; };
+
         static mrInfo empty() { return mrInfo(nullptr); };
 };
 
@@ -48,8 +51,8 @@ class mrDRELogger: public clang::ast_matchers::MatchFinder::MatchCallback
 {
 
     public:
-        std::map<const clang::FunctionDecl*, std::vector<const clang::DeclRefExpr*>> matched_dres;
-        std::map<const clang::FunctionDecl*, std::vector<const clang::VarDecl*>> matched_vds;
+        std::map<const clang::FunctionDecl*, std::set<const clang::DeclRefExpr*>> matched_dres;
+        std::map<const clang::FunctionDecl*, std::set<const clang::VarDecl*>> matched_vds;
 
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };

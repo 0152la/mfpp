@@ -156,8 +156,11 @@ if __name__ == '__main__':
             continue
 
         compile_cmd = f"{os.path.abspath(config['compile_script'])} {output_folder}/{output_file_name}"
+        old_cwd = os.getcwd()
+        os.chdir(output_folder)
         if not exec_cmd("compile", compile_cmd, test_count):
             continue
+        os.chdir(old_cwd)
 
         run_output_file_name = os.path.splitext(f"{output_folder}/{output_file_name}")[0]
         run_cmd = f"{run_output_file_name}"

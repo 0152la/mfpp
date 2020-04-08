@@ -25,8 +25,8 @@ class helperFnDeclareInfo
         std::vector<clang::Stmt*> body_instrs;
         clang::Stmt* return_body = nullptr;
         //std::vector<const clang::Stmt*> return_instrs;
-        std::vector<const clang::DeclRefExpr*> body_dre;
-        std::vector<const clang::VarDecl*> body_vd;
+        std::set<const clang::DeclRefExpr*> body_dre;
+        std::set<const clang::VarDecl*> body_vd;
 
     helperFnDeclareInfo(const clang::FunctionDecl* _fn) : base_func(_fn) {};
 

@@ -202,13 +202,13 @@ fuzzHelperFuncLocator::run(const clang::ast_matchers::MatchFinder::MatchResult& 
         if (const clang::DeclRefExpr* dre =
                 Result.Nodes.getNodeAs<clang::DeclRefExpr>("helperFuncDRE"))
         {
-            helper_funcs_splits.at(fd).body_dre.push_back(dre);
+            helper_funcs_splits.at(fd).body_dre.insert(dre);
             return;
         }
         else if (const clang::VarDecl* vd =
                 Result.Nodes.getNodeAs<clang::VarDecl>("helperFuncVD"))
         {
-            helper_funcs_splits.at(fd).body_vd.push_back(vd);
+            helper_funcs_splits.at(fd).body_vd.insert(vd);
             return;
         }
         assert(false);
