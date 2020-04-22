@@ -29,7 +29,7 @@ parser.add_argument("--debug", action='store_true',
     help = "If set, emit runtime debug information")
 parser.add_argument("--append-id", action='store_true',
     help = "If set, appends a random numeric hash to the output folder")
-parser.add_argument("--seed", type=int, default=42,
+parser.add_argument("--seed", type=int, default=random.randint(0, sys.maxsize),
     help = "Seed to initialize random generator in script.")
 parser.add_argument("--always-log-out", action='store_true',
     help = "If set, always prints the output of STDOUT and STDERR for test"\
