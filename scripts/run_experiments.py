@@ -64,11 +64,11 @@ def exec_cmd(name, cmd, test_id, timeout=None):
             log_runtime.info(f"FAIL {name} command")
         log_runtime.debug(f"STDOUT:\n{out}")
         log_runtime.debug(f"STDERR:\n{err}")
+    if proc_timeout:
+        log_console.warning(f"Timeout {name} command for test count {test_id}!")
+        return False
     if cmd_proc.returncode != 0:
-        if proc_timeout:
-            log_console.warning(f"Timeout {name} command for test count {test_id}!")
-        else:
-            log_console.warning(f"Failed {name} command for test count {test_id}!")
+        log_console.warning(f"Failed {name} command for test count {test_id}!")
         try:
             shutil.copyfile(full_output_file_name, f"{save_test_folder}/{name}_fail_{test_id:07d}")
         except FileNotFoundError:
