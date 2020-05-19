@@ -132,6 +132,10 @@ if __name__ == '__main__':
     if args.debug_to_file:
         log_console.addHandler(log_runtime_handler)
 
+    # Concatenate all parameters and values together and prefix the parameter
+    # flag name with '--'
+    param_string = " ".join(["--" + x + " " + str(config['params'][x]) for x in config['params']])
+
     test_count = 0
     terminate = False
     while test_count < args.test_count or args.test_count < 0:
@@ -150,8 +154,8 @@ if __name__ == '__main__':
         gen_cmd = f"./build/mtFuzzer {os.path.abspath(config['template_file'])}"\
               f" -o {output_folder}/{output_file_name}"\
               f" --lib-list={','.join([os.path.abspath(x) for x in config['lib_list']])}"\
-              f" --set-meta-path {os.path.abspath(config['set_meta_path'])}"\
-              f" --seed {gen_seed}"
+              f" --seed {gen_seed}"\
+              f" {param_string}"
         if not exec_cmd("generate", gen_cmd, test_count):
             continue
 
