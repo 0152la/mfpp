@@ -35,6 +35,9 @@ static llvm::cl::opt<size_t> MetaTestCount("tests",
 static llvm::cl::opt<size_t> MetaTestRels("test-size",
     llvm::cl::desc("Number of base metamorphic calls per metamorphic test to generate."),
     llvm::cl::init(5), llvm::cl::cat(tmpOC));
+static llvm::cl::opt<size_t> MetaTestDepth("test-depth",
+    llvm::cl::desc("Number of maximum recursive calls in a metamorphic test to generate."),
+    llvm::cl::init(10), llvm::cl::cat(tmpOC));
 static llvm::cl::opt<std::string> SetMetaTestsInput("set-meta-path",
     llvm::cl::desc("Old-YAML format set meta tests spec."),
     llvm::cl::cat(tmpOC));
@@ -51,6 +54,7 @@ static llvm::cl::list<std::string> LibInputList("lib-list",
 size_t meta_input_fuzz_count = 3;
 size_t meta_test_rel_count = 7;
 size_t meta_test_count = 20;
+size_t meta_test_depth = 10;
 llvm::SmallString<256> rewritten_input_file;
 std::string rewrite_data;
 std::string output_file = "";
@@ -84,6 +88,7 @@ main(int argc, char const **argv)
     meta_input_fuzz_count = MetaInputCount;
     meta_test_rel_count = MetaTestRels;
     meta_test_count = MetaTestCount;
+    meta_test_depth = MetaTestDepth;
 
     if (libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {

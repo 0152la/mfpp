@@ -13,10 +13,8 @@ extern std::string meta_var_name;
 extern size_t meta_input_fuzz_count;
 extern size_t meta_test_rel_count;
 extern size_t meta_test_count;
+extern size_t meta_test_depth;
 extern std::string meta_input_var_prefix;
-
-static size_t mr_vd_rw_index = 0;
-static size_t max_depth = 10;
 
 extern llvm::SmallString<256> rewritten_input_file;
 
@@ -246,7 +244,7 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
         }
 
         mrInfo recursive_mr_func = retrieveRandMrDecl(recursive_mr_type,
-            recursive_mr_family, mgi.depth > max_depth);
+            recursive_mr_family, mgi.depth > meta_test_depth);
         mgi.recursive_idx += 1;
 
         std::vector<std::string> mr_call_params;
