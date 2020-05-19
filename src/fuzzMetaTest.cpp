@@ -26,6 +26,15 @@ static llvm::cl::opt<size_t> FuzzerSeed("seed",
     llvm::cl::desc("Seed to use in fuzzer"), llvm::cl::init(42),
     llvm::cl::cat(tmpOC));
 static llvm::cl::alias FuzzerSeedAlias("s", llvm::cl::aliasopt(FuzzerSeed));
+static llvm::cl::opt<size_t> MetaInputCount("inputs",
+    llvm::cl::desc("Number of metamorphic input variable to create via fuzzing."),
+    llvm::cl::init(3), llvm::cl::cat(tmpOC));
+static llvm::cl::opt<size_t> MetaTestCount("tests",
+    llvm::cl::desc("Number of metamorphic tests to generate."),
+    llvm::cl::init(20), llvm::cl::cat(tmpOC));
+static llvm::cl::opt<size_t> MetaTestRels("test-size",
+    llvm::cl::desc("Number of base metamorphic calls per metamorphic test to generate."),
+    llvm::cl::init(5), llvm::cl::cat(tmpOC));
 static llvm::cl::opt<std::string> SetMetaTestsInput("set-meta-path",
     llvm::cl::desc("Old-YAML format set meta tests spec."),
     llvm::cl::cat(tmpOC));
@@ -71,6 +80,10 @@ main(int argc, char const **argv)
     set_meta_tests_path = SetMetaTestsInput;
     assert(!set_meta_tests_path.empty());
     output_file = TestOutput;
+
+    meta_input_fuzz_count = MetaInputCount;
+    meta_test_rel_count = MetaTestRels;
+    meta_test_count = MetaTestCount;
 
     if (libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {
