@@ -171,7 +171,7 @@ if __name__ == '__main__':
         old_cwd = os.getcwd()
         os.chdir(output_folder)
         if not exec_cmd("compile", compile_cmd, test_count):
-            os.chdir(output_folder)
+            os.chdir(old_cwd)
             continue
         os.chdir(old_cwd)
 
