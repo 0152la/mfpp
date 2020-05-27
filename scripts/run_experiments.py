@@ -9,6 +9,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 import yaml
 
 import pdb
@@ -21,6 +22,8 @@ parser = argparse.ArgumentParser(
     description = "Metalib batch experiment generator and runner")
 parser.add_argument("config", type=str,
     help = "Path to configuration yaml file.")
+parser.add_argument("--gen-timeout", type=int, default=30,
+    help = "Maximum time, in seconds, to allowe generation for a test case.")
 parser.add_argument("--run-timeout", type=int, default=120,
     help = "Maximum time, in seconds, to allow execution of generated test cases.")
 parser.add_argument("--test-count", type=int, default=100,
@@ -47,16 +50,21 @@ def exec_cmd(name, cmd, test_id, timeout=None):
     else:
         log_console.debug(f"Running {name} command with t/o {timeout}:\n\t*** {cmd}")
 
+    start_time = time.perf_counter()
     cmd_proc = subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, encoding="utf-8")
     try:
         out, err = cmd_proc.communicate(timeout=timeout)
+        exec_time = time.perf_counter() - start_time
         proc_timeout = False
     except subprocess.TimeoutExpired:
         proc_timeout = True
         cmd_proc.kill()
         out, err = cmd_proc.communicate()
+        exec_time = "TIMEOUT"
+        et = "TIMEOUT"
     log_runtime.info(f"{name} return code: {cmd_proc.returncode}")
+    log_runtime.info(f"{name} duration: {exec_time}")
     if cmd_proc.returncode != 0 or args.always_log_out:
         if proc_timeout:
             log_runtime.info(f"TIMEOUT {name} command")
@@ -156,7 +164,7 @@ if __name__ == '__main__':
               f" --lib-list={','.join([os.path.abspath(x) for x in config['lib_list']])}"\
               f" --seed {gen_seed}"\
               f" {param_string}"
-        if not exec_cmd("generate", gen_cmd, test_count):
+        if not exec_cmd("generate", gen_cmd, test_count, timeout=args.gen_timeout):
             continue
 
         compile_cmd = f"{os.path.abspath(config['compile_script'])} {output_folder}/{output_file_name}"
