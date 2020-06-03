@@ -8,9 +8,11 @@ import shlex
 import shutil
 import signal
 import subprocess
+import statistics
 import sys
 import time
 import yaml
+
 
 import pdb
 
@@ -39,6 +41,12 @@ parser.add_argument("--always-log-out", action='store_true',
             " generation phases.")
 parser.add_argument("--debug-to-file", action='store_true',
     help = "If set, emits debug output to log file.")
+parser.add_argument("--runtime-log", type=str, default="runtime.log",
+    help = "Name of log for runtime information.")
+parser.add_argument("--stats-log", type=str, default="stats.log",
+    help = "Name of log file to store statistics about test executions.")
+
+TIMEOUT_STR = "TIMEOUT"
 
 ###############################################################################
 # Helper functions
@@ -61,8 +69,7 @@ def exec_cmd(name, cmd, test_id, timeout=None):
         proc_timeout = True
         cmd_proc.kill()
         out, err = cmd_proc.communicate()
-        exec_time = "TIMEOUT"
-        et = "TIMEOUT"
+        exec_time = TIMEOUT_STR
     log_runtime.info(f"{name} return code: {cmd_proc.returncode}")
     log_runtime.info(f"{name} duration: {exec_time}")
     if cmd_proc.returncode != 0 or args.always_log_out:
@@ -74,14 +81,16 @@ def exec_cmd(name, cmd, test_id, timeout=None):
         log_runtime.debug(f"STDERR:\n{err}")
     if proc_timeout:
         log_console.warning(f"Timeout {name} command for test count {test_id}!")
-        return False
-    if cmd_proc.returncode != 0:
+    elif cmd_proc.returncode != 0:
         log_console.warning(f"Failed {name} command for test count {test_id}!")
         try:
             shutil.copyfile(full_output_file_name, f"{save_test_folder}/{name}_fail_{test_id:07d}")
         except FileNotFoundError:
             pass
-    return cmd_proc.returncode == 0
+    stats = {}
+    stats["exec_time"] = exec_time
+    stats["return_code"] = cmd_proc.returncode
+    return stats
 
 def terminate_handler(sig, frame):
     log_console.info(f"Received terminate signal, finishing...")
@@ -131,7 +140,7 @@ if __name__ == '__main__':
     save_test_folder = f"{output_folder}/{save_test_folder_name}"
     os.makedirs(save_test_folder, exist_ok=False)
 
-    log_runtime_filename = "runtime.log"
+    log_runtime_filename = args.runtime_log
     log_console.debug(f"Setting runtime log file `{log_runtime_filename}`")
     log_runtime = logging.getLogger('gentime')
     log_runtime.setLevel(log_level)
@@ -144,12 +153,24 @@ if __name__ == '__main__':
     # flag name with '--'
     param_string = " ".join(["--" + x + " " + str(config['params'][x]) for x in config['params']])
 
+    stats = {}
+    stats["total_tests"] = 0
+    stats["gen_fail"] = 0
+    stats["compile_fail"] = 0
+    stats["timeout_tests"] = 0
+    stats["fail_tests"] = 0
+    stats["test_gentimes"] = []
+    stats["test_compiletimes"] = []
+    stats["test_runtimes"] = []
+    stats["run_return_codes"] = {}
+
     test_count = 0
     terminate = False
     while test_count < args.test_count or args.test_count < 0:
         if terminate:
             break
         test_count += 1
+        stats["total_tests"] += 1
         if not args.debug:
             log_console_handler.terminator = '\r'
         curr_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -164,22 +185,53 @@ if __name__ == '__main__':
               f" --lib-list={','.join([os.path.abspath(x) for x in config['lib_list']])}"\
               f" --seed {gen_seed}"\
               f" {param_string}"
-        if not exec_cmd("generate", gen_cmd, test_count, timeout=args.gen_timeout):
+        gen_result = exec_cmd("generate", gen_cmd, test_count, timeout=args.gen_timeout)
+        stats["test_gentimes"].append(gen_result["exec_time"])
+        if gen_result["return_code"] != 0:
+            stats["gen_fail"] += 1
             continue
 
-        compile_cmd = f"{os.path.abspath(config['compile_script'])} {output_folder}/{output_file_name}"
+        compile_cmd = f"{os.path.abspath(config['compile_script'])} {output_folder}/{output_file_name} {config['cmake_script_dir']}"
         old_cwd = os.getcwd()
         os.chdir(output_folder)
-        if not exec_cmd("compile", compile_cmd, test_count):
+        compile_result = exec_cmd("compile", compile_cmd, test_count)
+        stats["test_compiletimes"].append(compile_result["exec_time"])
+        if compile_result["return_code"] != 0:
+            stats["compile_fail"] += 1
             os.chdir(old_cwd)
             continue
         os.chdir(old_cwd)
 
         run_output_file_name = os.path.splitext(f"{output_folder}/{output_file_name}")[0]
         run_cmd = f"{run_output_file_name}"
-        if not exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout):
+        run_result = exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout)
+        stats["test_runtimes"].append(run_result["exec_time"])
+        if not run_result['return_code'] in stats['run_return_codes']:
+            stats['run_return_codes'][run_result['return_code']] = 0
+        stats['run_return_codes'][run_result['return_code']] += 1
+        if run_result["return_code"] != 0:
+            if run_result["exec_time"] == TIMEOUT_STR:
+                stats["timeout_tests"] += 1
+            else:
+                stats["fail_tests"] += 1
             continue
-
 
     log_console_handler.terminator = '\n'
     log_console.info(f"Finished experiments {output_folder}.")
+
+    with open(f"{output_folder}/{args.stats_log}", 'w') as stats_writer:
+        stats_writer.write(f"Total test count: {stats['total_tests']}")
+        stats_writer.write(f"Total generation fails: {stats['gen_fail']}")
+        stats_writer.write(f"Total compilation fails: {stats['compile_fail']}")
+        stats_writer.write(f"Total execution fails: {stats['fail_tests']}")
+        stats_writer.write(f"Total execution timeouts: {stats['timeout_tests']}")
+        stats_writer.write(f"Average generation times: {statistics.mean(stats['test_gentimes'])}")
+        stats_writer.write(f"Median generation times: {statistics.median(stats['test_gentimes'])}")
+        stats_writer.write(f"Average compile times: {statistics.mean(stats['test_compiletimes'])}")
+        stats_writer.write(f"Median compile times: {statistics.median(stats['test_compiletimes'])}")
+        try:
+            stats_writer.write(f"Average execution times: {statistics.mean([x for x in stats['test_runtimes'] if isinstance(x, int)])}")
+            stats_writer.write(f"Median execution times: {statistics.median([x for x in stats['test_runtimes'] if isinstance(x, int)])}")
+        except statistics.StatisticsError:
+            stats_writer.write("Average execution times: all t/o")
+            stats_writer.write("Median execution times: all t/o")
