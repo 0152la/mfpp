@@ -228,6 +228,7 @@ if __name__ == '__main__':
             stats_writer.write(f"Specification version: {spec_repo.head.commit.hexsha}\n")
         except KeyError:
             pass
+        stats_writer.write(f"Seed: {args.seed}\n")
         stats_writer.write(f"Total test count: {stats['total_tests']}\n")
         stats_writer.write(f"Total generation fails: {stats['gen_fail']}\n")
         stats_writer.write(f"Total compilation fails: {stats['compile_fail']}\n")
