@@ -230,8 +230,10 @@ if __name__ == '__main__':
         stats_writer.write(f"Average compile times: {statistics.mean(stats['test_compiletimes'])}\n")
         stats_writer.write(f"Median compile times: {statistics.median(stats['test_compiletimes'])}\n")
         try:
-            stats_writer.write(f"Average execution times: {statistics.mean([x for x in stats['test_runtimes'] if isinstance(x, int)])}\n")
-            stats_writer.write(f"Median execution times: {statistics.median([x for x in stats['test_runtimes'] if isinstance(x, int)])}\n")
+            stats_writer.write(f"Average execution times: {statistics.mean([x for x in stats['test_runtimes'] if isinstance(x, float)])}\n")
+            stats_writer.write(f"Median execution times: {statistics.median([x for x in stats['test_runtimes'] if isinstance(x, float)])}\n")
         except statistics.StatisticsError:
             stats_writer.write("Average execution times: all t/o\n")
             stats_writer.write("Median execution times: all t/o\n")
+        stats_writer.write(f"\nRaw data:\n")
+        stats_writer.write(yaml.dump(stats))
