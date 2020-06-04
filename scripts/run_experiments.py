@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import datetime
+import git
 import logging
 import os
 import random
@@ -220,6 +221,13 @@ if __name__ == '__main__':
     log_console.info(f"Finished experiments {output_folder}.")
 
     with open(f"{output_folder}/{args.stats_log}", 'w') as stats_writer:
+        cwd_repo = git.Repo(".")
+        stats_writer.write(f"Generator infrastructure version: {cwd_repo.head.commit.hexsha}\n")
+        try:
+            spec_repo = git.Repo(config['spec_repo_dir'])
+            stats_writer.write(f"Specification version: {spec_repo.head.commit.hexsha}\n")
+        except KeyError:
+            pass
         stats_writer.write(f"Total test count: {stats['total_tests']}\n")
         stats_writer.write(f"Total generation fails: {stats['gen_fail']}\n")
         stats_writer.write(f"Total compilation fails: {stats['compile_fail']}\n")
