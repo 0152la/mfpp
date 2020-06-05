@@ -3,6 +3,7 @@ import argparse
 import datetime
 import git
 import logging
+import math
 import os
 import random
 import shlex
@@ -167,6 +168,7 @@ if __name__ == '__main__':
 
     test_count = 0
     terminate = False
+    experiment_start_time = time.perf_counter()
     while test_count < args.test_count or args.test_count < 0:
         if terminate:
             break
@@ -217,6 +219,8 @@ if __name__ == '__main__':
                 stats["fail_tests"] += 1
             continue
 
+
+    experiment_time = time.perf_counter() - experiment_start_time
     log_console_handler.terminator = '\n'
     log_console.info(f"Finished experiments {output_folder}.")
 
@@ -229,6 +233,7 @@ if __name__ == '__main__':
         except KeyError:
             pass
         stats_writer.write(f"Seed: {args.seed}\n")
+        stats_writer.write(f"Total experiment time: {datetime.timedelta(seconds=math.trunc(experiment_time))}\n")
         stats_writer.write(f"Total test count: {stats['total_tests']}\n")
         stats_writer.write(f"Total generation fails: {stats['gen_fail']}\n")
         stats_writer.write(f"Total compilation fails: {stats['compile_fail']}\n")
