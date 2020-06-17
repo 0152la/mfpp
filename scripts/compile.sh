@@ -1,8 +1,19 @@
 #!/bin/bash
+if [[ "$1" = "--help" ]]
+then
+    echo -e "Compilation script for Metalib generated test cases\n\n"
+    echo -e "Usage: compile.sh <test_name> <cmake_script_location>"
+    echo -e "\t<test_name> -- path to input generated test file"
+    echo -e "\t<cmake_script_location> -- path to CMake script used to compile a "
+    echo -e "\t\tprogram for the given library"
+fi
+
 if [[ "$#" -ne 2 ]]
 then
     echo "Expected arguments: <test_name> <cmake_script_location>"
+    exit 1
 fi
+
 test_name=$1
 cmake_loc=$2
 build_dir=`mktemp -d`
