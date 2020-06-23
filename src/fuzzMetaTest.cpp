@@ -66,6 +66,16 @@ extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
 std::string meta_input_var_prefix = "output_var";
 std::string meta_var_name = "r";
 
+void
+CHECK_CONDITION(bool condition, std::string msg)
+{
+    if (!condition)
+    {
+        std::cout << "ASSERTION FAILED: " << msg << std::endl;
+        exit(1);
+    }
+}
+
 int
 main(int argc, char const **argv)
 {
@@ -82,7 +92,9 @@ main(int argc, char const **argv)
         op.getSourcePathList());
 
     set_meta_tests_path = SetMetaTestsInput;
-    assert(!set_meta_tests_path.empty());
+    //assert(!set_meta_tests_path.empty());
+    CHECK_CONDITION(llvm::sys::fs::exists(SetMetaTestsInput),
+        "Given input SetMetaTests file does not exist!");
     output_file = TestOutput;
 
     meta_input_fuzz_count = MetaInputCount;
