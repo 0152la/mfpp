@@ -102,10 +102,10 @@ def terminate_handler(sig, frame):
 def emit_times_stats(times, t_type, writer):
     try:
         writer.write(f"Average {t_type} times: ")
-        writer.write(statistics.mean([x for x in times if isinstance(x, float)]))
+        writer.write(str(statistics.mean([x for x in times if isinstance(x, float)])))
         writer.write("\n")
         writer.write(f"Median {t_type} times: ")
-        writer.write(statistics.median([x for x in times if isinstance(x, float)]))
+        writer.write(str(statistics.median([x for x in times if isinstance(x, float)])))
         writer.write("\n")
     except statistics.StatisticsError:
         writer.write(f"Average {t_type} times: all t/o\n")
