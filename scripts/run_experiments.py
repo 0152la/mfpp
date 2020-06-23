@@ -99,6 +99,18 @@ def terminate_handler(sig, frame):
     global terminate
     terminate = True
 
+def emit_times_stats(times, t_type, writer):
+    try:
+        writer.write(f"Average {t_type} times: ")
+        writer.write(statistics.mean([x for x in times if isinstance(x, float)))
+        writer.write("\n")
+        writer.write(f"Median {t_type} times: ")
+        writer.write(statistics.median([x for x in times if isinstance(x, float)))
+        writer.write("\n")
+    except statistics.StatisticsError:
+        writer.write(f"Average {t_type} times: all t/o\n")
+        writer.write(f"Median {t_type} times: all t/o\n")
+
 ###############################################################################
 # Main function
 ###############################################################################
@@ -239,15 +251,8 @@ if __name__ == '__main__':
         stats_writer.write(f"Total compilation fails: {stats['compile_fail']}\n")
         stats_writer.write(f"Total execution fails: {stats['fail_tests']}\n")
         stats_writer.write(f"Total execution timeouts: {stats['timeout_tests']}\n")
-        stats_writer.write(f"Average generation times: {statistics.mean(stats['test_gentimes'])}\n")
-        stats_writer.write(f"Median generation times: {statistics.median(stats['test_gentimes'])}\n")
-        stats_writer.write(f"Average compile times: {statistics.mean(stats['test_compiletimes'])}\n")
-        stats_writer.write(f"Median compile times: {statistics.median(stats['test_compiletimes'])}\n")
-        try:
-            stats_writer.write(f"Average execution times: {statistics.mean([x for x in stats['test_runtimes'] if isinstance(x, float)])}\n")
-            stats_writer.write(f"Median execution times: {statistics.median([x for x in stats['test_runtimes'] if isinstance(x, float)])}\n")
-        except statistics.StatisticsError:
-            stats_writer.write("Average execution times: all t/o\n")
-            stats_writer.write("Median execution times: all t/o\n")
+        emit_times_stats(stats['test_gentimes'], "generation", stats_writer)
+        emit_times_stats(stats['test_compiletimes'], "compile", stats_writer)
+        emit_times_stats(stats['test_runtimes'], "execution", stats_writer)
         stats_writer.write(f"\nRaw data:\n")
         stats_writer.write(yaml.dump(stats))
