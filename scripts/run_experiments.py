@@ -32,6 +32,8 @@ parser.add_argument("--run-timeout", type=int, default=120,
     help = "Maximum time, in seconds, to allow execution of generated test cases.")
 parser.add_argument("--test-count", type=int, default=100,
     help = "Number of tests to run; set `-1` for infinite tests.")
+parser.add_argument("--test-time", type=int, default=-1,
+    help = "Time in seconds to perform testing. Overrides `test-count`.")
 parser.add_argument("--debug", action='store_true',
     help = "If set, emit runtime debug information")
 parser.add_argument("--append-id", action='store_true',
@@ -133,6 +135,10 @@ if __name__ == '__main__':
     log_console.debug(f"Setting seed {args.seed}")
     random.seed(args.seed)
 
+    if args.test_time != -1:
+        log_console.debug(f"Found set test-time to {args.test_time} seconds.")
+        args.test_count = -1
+
     log_console.debug(f"Parsing YAML config file {args.config}")
     with open(args.config, 'r') as config_fd:
         config = yaml.load(config_fd, Loader=yaml.FullLoader)
@@ -178,18 +184,21 @@ if __name__ == '__main__':
     stats["test_runtimes"] = []
     stats["run_return_codes"] = {}
 
+
     test_count = 0
     terminate = False
     experiment_start_time = time.perf_counter()
-    while test_count < args.test_count or args.test_count < 0:
-        if terminate:
-            break
+    while (args.test_time == -1 or time.perf_counter() - experiment_start_time < args.test_time) and (test_count < args.test_count or args.test_count == -1) and not terminate:
         test_count += 1
         stats["total_tests"] += 1
         if not args.debug:
             log_console_handler.terminator = '\r'
         curr_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log_console.debug(f"[{curr_time}] START test count {test_count} of {args.test_count}")
+        curr_time = "\033[1m\033[31m" + curr_time + "\033[0m"
+        if (args.test_time != -1):
+            log_console.debug(f"[{curr_time}] Elapsed {time.perf_counter() - experiment_start_time} of {args.test_time} seconds.")
+        else:
+            log_console.debug(f"[{curr_time}] Start test count {test_count} of {args.test_count}")
 
         gen_seed = random.randrange(sys.maxsize)
         log_console.debug(f"Generating test with seed {gen_seed}")
@@ -231,7 +240,6 @@ if __name__ == '__main__':
                 stats["fail_tests"] += 1
             continue
 
-
     experiment_time = time.perf_counter() - experiment_start_time
     log_console_handler.terminator = '\n'
     log_console.info(f"Finished experiments {output_folder}.")
@@ -242,6 +250,11 @@ if __name__ == '__main__':
         try:
             spec_repo = git.Repo(config['spec_repo_dir'])
             stats_writer.write(f"Specification version: {spec_repo.head.commit.hexsha}\n")
+        except KeyError:
+            pass
+        try:
+            lib_repo = git.Repo(config['lib_repo_dir'])
+            stats_writer.write(f"Library under test version: {lib_repo.head.commit.hexsha}\n")
         except KeyError:
             pass
         stats_writer.write(f"Seed: {args.seed}\n")
