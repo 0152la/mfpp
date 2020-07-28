@@ -127,7 +127,7 @@ fuzzerCallsReplacer::makeReplace(
 
                 replace_val = std::to_string(fuzzer::clang::generateRand(min, max));
             }
-            else if (rand_type.find("basic_string<char>") != std::string::npos)
+            else if (rand_type.find("basic_string") != std::string::npos)
             {
                 uint8_t min = 0, max = std::numeric_limits<uint8_t>::max();
                 clang::CallExpr::const_arg_iterator it = ce->arg_begin();
