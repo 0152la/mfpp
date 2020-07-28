@@ -35,27 +35,43 @@ double
 fuzzerCallsReplacer::getDoubleFromClangExpr(
     clang::CallExpr::const_arg_iterator ce_it) const
 {
-    const clang::FloatingLiteral* fp_lit;
+    const clang::Expr* e = *ce_it;
     const clang::UnaryOperator* uo =
             llvm::dyn_cast<const clang::UnaryOperator>(*ce_it);
-    if (uo)
+    if (const clang::UnaryOperator* uo =
+            llvm::dyn_cast<clang::UnaryOperator>(e))
     {
         assert(uo->getOpcode() == clang::UnaryOperatorKind::UO_Minus);
-        fp_lit =
-            llvm::dyn_cast<clang::FloatingLiteral>(uo->getSubExpr());
+        e = uo->getSubExpr();
     }
-    else
+    while (const clang::CastExpr* cast_e = llvm::dyn_cast<clang::CastExpr>(e))
     {
-        fp_lit = llvm::dyn_cast<clang::FloatingLiteral>(*ce_it);
+        e = cast_e->getSubExpr();
     }
-    assert(fp_lit);
 
-    double fp_val = fp_lit->getValue().convertToDouble();
-    if (uo)
+    const clang::FloatingLiteral* fp_lit = llvm::dyn_cast<clang::FloatingLiteral>(e);
+    const clang::IntegerLiteral* int_lit = llvm::dyn_cast<clang::IntegerLiteral>(e);
+    assert(fp_lit || int_lit);
+
+    if (fp_lit)
     {
-        fp_val = -fp_val;
+        double fp_val = fp_lit->getValue().convertToDouble();
+        if (uo)
+        {
+            fp_val = -fp_val;
+        }
+        return fp_val;
     }
-    return fp_val;
+    if (int_lit)
+    {
+        double int_val = int_lit->getValue().getZExtValue();
+        if (uo)
+        {
+            int_val = -int_val;
+        }
+        return int_val;
+    }
+    assert(false);
 }
 
 void
@@ -68,7 +84,8 @@ fuzzerCallsReplacer::makeReplace(
         assert(fd);
         if (!fd->getNameAsString().compare("fuzz_rand"))
         {
-            assert(fd->getTemplateSpecializationArgs()->size() == 1);
+            // TODO handle second argument type
+            assert(fd->getTemplateSpecializationArgs()->size() == 2);
             std::string rand_type = fd->getTemplateSpecializationArgs()->get(0)
                 .getAsType().getAsString();
             std::string replace_val = "";
@@ -109,6 +126,25 @@ fuzzerCallsReplacer::makeReplace(
                 }
 
                 replace_val = std::to_string(fuzzer::clang::generateRand(min, max));
+            }
+            else if (rand_type.find("basic_string<char>") != std::string::npos)
+            {
+                uint8_t min = 0, max = std::numeric_limits<uint8_t>::max();
+                clang::CallExpr::const_arg_iterator it = ce->arg_begin();
+                if (it != ce->arg_end())
+                {
+                    min = static_cast<uint8_t>(fuzzerCallsReplacer::getDoubleFromClangExpr(it));
+                    std::advance(it, 1);
+                    if (it != ce->arg_end())
+                    {
+                        max = static_cast<uint8_t>(fuzzerCallsReplacer::getDoubleFromClangExpr(it));
+                        //max = llvm::dyn_cast<clang::IntegerLiteral>(*it)
+                            //->getValue().getSExtValue();
+                    }
+                    assert(std::next(it) == ce->arg_end());
+                }
+
+                replace_val = fuzzer::clang::generateRandStr(min, max);
             }
             else
             {

@@ -1,4 +1,7 @@
 #!/bin/bash
+
+set -x 
+
 if [[ "$1" = "--help" ]]
 then
     echo -e "Compilation script for Metalib generated test cases\n\n"

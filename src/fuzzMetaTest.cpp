@@ -76,6 +76,16 @@ CHECK_CONDITION(bool condition, std::string msg)
     }
 }
 
+void
+EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
+{
+    std::error_code ec;
+    int fd;
+    llvm::sys::fs::createTemporaryFile("", ".cpp", fd, rewritten_input_file);
+    llvm::raw_fd_ostream rif_rfo(fd, true);
+    pass_rw.getEditBuffer(pass_rw.getSourceMgr().getMainFileID()).write(rif_rfo);
+}
+
 int
 main(int argc, char const **argv)
 {
