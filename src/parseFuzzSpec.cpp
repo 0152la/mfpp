@@ -639,10 +639,7 @@ templateDuplicator::HandleTranslationUnit(clang::ASTContext& ctx)
 bool
 templateDuplicatorAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
-    std::cout << "[templateDuplicatorAction] Parsing input file ";
-    std::cout << ci.getSourceManager().getFileEntryForID(
-        ci.getSourceManager().getMainFileID())->getName().str()
-        << std::endl;
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "templateDuplicatorAction");
     return true;
 };
 
@@ -666,10 +663,7 @@ templateDuplicatorAction::EndSourceFileAction()
 bool
 parseFuzzConstructsAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
-    std::cout << "[parseFuzzConstructsAction] Parsing input file ";
-    std::cout << ci.getSourceManager().getFileEntryForID(
-        ci.getSourceManager().getMainFileID())->getName().str()
-            << std::endl;
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "parseFuzzConstructsAction");
     return true;
 }
 

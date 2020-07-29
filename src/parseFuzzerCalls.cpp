@@ -191,9 +191,7 @@ parseFuzzerCalls::HandleTranslationUnit(clang::ASTContext& ctx)
 bool
 parseFuzzerCallsAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
-    std::cout << "[parseFuzzerCallsAction] Parsing input file ";
-    std::cout << ci.getSourceManager().getFileEntryForID(
-        ci.getSourceManager().getMainFileID())->getName().str() << std::endl;
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "parseFuzzerCallsAction");
     return true;
 }
 

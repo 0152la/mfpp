@@ -285,3 +285,56 @@ libSpecReader::libSpecReader()
         clang::attr::Annotate))
             .bind("exposedDecl"), &printer);
 }
+
+void
+fuzzHelperLogger::HandleTranslationUnit(clang::ASTContext& ctx)
+{
+    matcher.matchAST(ctx);
+}
+
+
+bool
+fuzzHelperLoggerAction::BeginSourceFileAction(clang::CompilerInstance& ci)
+{
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "fuzzHelperLoggerAction");
+    return true;
+};
+
+void
+fuzzHelperLoggerAction::EndSourceFileAction()
+{
+    addExposedFuncs(*this->print_policy);
+};
+
+std::unique_ptr<clang::ASTConsumer>
+fuzzHelperLoggerAction::CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File)
+{
+    this->print_policy = &CI.getASTContext().getPrintingPolicy();
+    return std::make_unique<fuzzHelperLogger>();
+}
+
+void
+libSpecReader::HandleTranslationUnit(clang::ASTContext& ctx)
+{
+    matcher.matchAST(ctx);
+};
+
+bool
+libSpecReaderAction::BeginSourceFileAction(clang::CompilerInstance& ci)
+{
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "libSpecReaderAction");
+    return true;
+};
+
+void
+libSpecReaderAction::EndSourceFileAction()
+{
+    addExposedFuncs(*this->print_policy);
+};
+
+std::unique_ptr<clang::ASTConsumer>
+libSpecReaderAction::CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File)
+{
+    this->print_policy = &CI.getASTContext().getPrintingPolicy();
+    return std::make_unique<libSpecReader>();
+}

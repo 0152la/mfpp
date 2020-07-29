@@ -12,7 +12,7 @@
 
 namespace fuzz_helpers {
 
-bool EMIT_PASS_START_DEBUG(clang::CompilerInstance&, std::string);
+void EMIT_PASS_START_DEBUG(clang::CompilerInstance&, std::string);
 
 } // namespace fuzz_helpers
 

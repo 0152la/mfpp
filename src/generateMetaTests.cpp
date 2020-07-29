@@ -311,7 +311,7 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
         this->mr_name = mrDeclName.at(3);
     }
 
-    std::cout << FD->getReturnType().getAsString() << std::endl;
+    //std::cout << FD->getReturnType().getAsString() << std::endl;
     assert(this->isCheck() ||
         !FD->getReturnType().getAsString().compare(meta_input_var_type));
 }
@@ -604,7 +604,8 @@ metaGenerator::expandMetaTests()
 bool
 metaGeneratorAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
-    return fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "metaGeneratorAction");
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "metaGeneratorAction");
+    return true;
     //std::cout << "[metaGeneratorAction] Parsing input file ";
     //std::cout << ci.getSourceManager().getFileEntryForID(
         //ci.getSourceManager().getMainFileID())->getName().str()

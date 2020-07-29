@@ -12,7 +12,7 @@ CHECK_CONDITION(bool condition, std::string msg)
     }
 }
 
-bool
+void
 EMIT_PASS_START_DEBUG(clang::CompilerInstance& ci, std::string pass_name)
 {
     std::chrono::duration<double> from_start = std::chrono::system_clock::now() - START_TIME;
@@ -24,7 +24,6 @@ EMIT_PASS_START_DEBUG(clang::CompilerInstance& ci, std::string pass_name)
     std::cout << ci.getSourceManager().getFileEntryForID(
         ci.getSourceManager().getMainFileID())->getName().str()
         << std::endl;
-    return true;
 }
 
 } // namespace fuzz_helpers

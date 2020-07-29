@@ -17,6 +17,7 @@
 #include <vector>
 
 #include "globals.hpp"
+#include "srcHelperFunctions.hpp"
 #include "clang_interface.hpp"
 #include "generateMetaTests.hpp"
 

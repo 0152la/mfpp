@@ -12,6 +12,7 @@
 #include <numeric>
 
 #include "globals.hpp"
+#include "srcHelperFunctions.hpp"
 
 typedef std::pair<std::vector<clang::Stmt*>, clang::Stmt*> helpFnSplit;
 

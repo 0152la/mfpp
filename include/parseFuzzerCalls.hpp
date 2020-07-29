@@ -11,6 +11,7 @@
 #include <limits>
 
 #include "globals.hpp"
+#include "srcHelperFunctions.hpp"
 #include "clang_interface.hpp"
 
 class fuzzerCallsReplacer

@@ -13,6 +13,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "srcHelperFunctions.hpp"
 #include "clang_interface.hpp"
 
 void addExposedFuncs(const clang::PrintingPolicy&);
@@ -78,10 +79,7 @@ class fuzzHelperLogger : public clang::ASTConsumer
     public:
         fuzzHelperLogger();
 
-        void HandleTranslationUnit(clang::ASTContext& ctx) override
-        {
-            matcher.matchAST(ctx);
-        }
+        void HandleTranslationUnit(clang::ASTContext& ctx) override;
 };
 
 class fuzzHelperLoggerAction : public clang::ASTFrontendAction
@@ -92,25 +90,11 @@ class fuzzHelperLoggerAction : public clang::ASTFrontendAction
     public:
         fuzzHelperLoggerAction() {};
 
-        bool
-        BeginSourceFileAction(clang::CompilerInstance& ci) override
-        {
-            std::cout << "[fuzzHelperLoggerAction] Parsing input file ";
-            std::cout << ci.getSourceManager().getFileEntryForID(
-                ci.getSourceManager().getMainFileID())->getName().str()
-                << std::endl;
-            return true;
-        };
-
-        void
-        EndSourceFileAction() override { addExposedFuncs(*this->print_policy); };
+        bool BeginSourceFileAction(clang::CompilerInstance& ci) override;
+        void EndSourceFileAction() override;
 
         std::unique_ptr<clang::ASTConsumer>
-        CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override
-        {
-            this->print_policy = &CI.getASTContext().getPrintingPolicy();
-            return std::make_unique<fuzzHelperLogger>();
-        }
+        CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override;
 };
 
 /*******************************************************************************
@@ -132,10 +116,7 @@ class libSpecReader : public clang::ASTConsumer
     public:
         libSpecReader();
 
-        void HandleTranslationUnit(clang::ASTContext& ctx) override
-        {
-            matcher.matchAST(ctx);
-        };
+        void HandleTranslationUnit(clang::ASTContext& ctx) override;
 };
 
 class libSpecReaderAction : public clang::ASTFrontendAction
@@ -146,25 +127,11 @@ class libSpecReaderAction : public clang::ASTFrontendAction
     public:
         libSpecReaderAction() {};
 
-        bool
-        BeginSourceFileAction(clang::CompilerInstance& ci) override
-        {
-            std::cout << "[libSpecReaderAction] Parsing input file ";
-            std::cout << ci.getSourceManager().getFileEntryForID(
-                ci.getSourceManager().getMainFileID())->getName().str()
-                << std::endl;
-            return true;
-        };
-
-        void
-        EndSourceFileAction() override { addExposedFuncs(*this->print_policy); };
+        bool BeginSourceFileAction(clang::CompilerInstance& ci) override;
+        void EndSourceFileAction() override;
 
         std::unique_ptr<clang::ASTConsumer>
-        CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override
-        {
-            this->print_policy = &CI.getASTContext().getPrintingPolicy();
-            return std::make_unique<libSpecReader>();
-        }
+        CreateASTConsumer(clang::CompilerInstance& CI, llvm::StringRef File) override;
 };
 
 extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
