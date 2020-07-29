@@ -16,6 +16,7 @@
 #include <iostream>
 #include <vector>
 
+#include "globals.hpp"
 #include "clang_interface.hpp"
 #include "generateMetaTests.hpp"
 
@@ -289,6 +290,6 @@ class parseFuzzConstructsAction : public clang::ASTFrontendAction
         }
 };
 
-//} // namespace fuzz_input_parse
+extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
 
 #endif // _PARSE_FUZZ_SPEC_HPP

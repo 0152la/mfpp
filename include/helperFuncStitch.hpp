@@ -11,6 +11,8 @@
 #include <iostream>
 #include <numeric>
 
+#include "globals.hpp"
+
 typedef std::pair<std::vector<clang::Stmt*>, clang::Stmt*> helpFnSplit;
 
 const clang::ast_type_traits::DynTypedNode

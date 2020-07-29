@@ -13,6 +13,7 @@
 
 #include "metaSpecReader.hpp"
 #include "clang_interface.hpp"
+#include "srcHelperFunctions.hpp"
 
 struct mrGenInfo
 {

@@ -167,4 +167,7 @@ class libSpecReaderAction : public clang::ASTFrontendAction
         }
 };
 
+extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
+    exposed_funcs;
+
 #endif // _LIB_SPEC_READER_HPP

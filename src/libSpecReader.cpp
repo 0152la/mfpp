@@ -1,9 +1,9 @@
 #include "libSpecReader.hpp"
 
-const llvm::StringRef exposingAttributeStr("expose");
-const llvm::StringRef exposingSpecialAttributeStr("expose_special");
 std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
     exposed_funcs(&ExposedFuncDecl::compare);
+const llvm::StringRef exposingAttributeStr("expose");
+const llvm::StringRef exposingSpecialAttributeStr("expose_special");
 std::set<ExposedTemplateType, decltype(&ExposedTemplateType::compare)>
     exposed_template_types(&ExposedTemplateType::compare);
 

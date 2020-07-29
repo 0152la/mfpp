@@ -1,5 +1,7 @@
 #include "parseFuzzSpec.hpp"
 
+std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
+
 static std::map<std::string, clang::APValue*> config_inputs;
 static std::pair<const clang::CallExpr*, const clang::CallExpr*>
     fuzz_template_bounds(nullptr, nullptr);
@@ -8,20 +10,9 @@ static std::map<size_t, std::vector<std::string>>
     input_template_copies;
 static const clang::CompoundStmt* main_child;
 
-extern size_t meta_input_fuzz_count;
-extern size_t meta_test_rel_count;
-extern std::string meta_input_var_type;
-extern llvm::SmallString<256> rewritten_input_file;
-extern std::string rewrite_data;
-extern std::string meta_input_var_prefix;
-
-extern std::string set_meta_tests_path;
-
 static std::vector<fuzzNewCall> fuzz_new_vars;
 static std::vector<std::pair<const clang::CallExpr*, const clang::Stmt*>> mr_fuzz_calls;
 static std::vector<stmtRedeclTemplateVars> stmt_rewrite_map;
-std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
-    declared_fuzz_vars(&fuzzVarDecl::compare);
 static std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
     common_template_var_decls(&fuzzVarDecl::compare);
 

@@ -10,6 +10,7 @@
 
 #include <limits>
 
+#include "globals.hpp"
 #include "clang_interface.hpp"
 
 class fuzzerCallsReplacer

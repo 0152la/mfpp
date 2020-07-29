@@ -2,8 +2,6 @@
 
 std::vector<const clang::CallExpr*> fuzzer_calls;
 
-extern std::string output_file;
-
 int
 fuzzerCallsReplacer::getIntFromClangExpr(
     clang::CallExpr::const_arg_iterator ce_it) const

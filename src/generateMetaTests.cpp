@@ -6,17 +6,9 @@ static const clang::FunctionDecl* test_main_fd;
 std::string recursive_func_call_name = "placeholder";
 std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
 std::vector<mrInfo> meta_check_decls;
+
 std::string meta_input_var_type = "";
 std::string mr_vd_suffix = "_mrv";
-
-extern std::string meta_var_name;
-extern size_t meta_input_fuzz_count;
-extern size_t meta_test_rel_count;
-extern size_t meta_test_count;
-extern size_t meta_test_depth;
-extern std::string meta_input_var_prefix;
-
-extern llvm::SmallString<256> rewritten_input_file;
 
 std::map<std::string, REL_TYPE> mr_type_map {
     { "generators" , GENERATOR },
@@ -319,6 +311,7 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
         this->mr_name = mrDeclName.at(3);
     }
 
+    std::cout << FD->getReturnType().getAsString() << std::endl;
     assert(this->isCheck() ||
         !FD->getReturnType().getAsString().compare(meta_input_var_type));
 }
@@ -611,11 +604,12 @@ metaGenerator::expandMetaTests()
 bool
 metaGeneratorAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
-    std::cout << "[metaGeneratorAction] Parsing input file ";
-    std::cout << ci.getSourceManager().getFileEntryForID(
-        ci.getSourceManager().getMainFileID())->getName().str()
-        << std::endl;
-    return true;
+    return fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "metaGeneratorAction");
+    //std::cout << "[metaGeneratorAction] Parsing input file ";
+    //std::cout << ci.getSourceManager().getFileEntryForID(
+        //ci.getSourceManager().getMainFileID())->getName().str()
+        //<< std::endl;
+    //return true;
 }
 
 void

@@ -18,6 +18,7 @@ add_definitions(${LLVM_DEFINITIONS})
 
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
+    ${SRC_DIR}/srcHelperFunctions.cpp
     ${SRC_DIR}/helperFuncStitch.cpp
     ${SRC_DIR}/parseFuzzerCalls.cpp
     ${SRC_DIR}/parseFuzzSpec.cpp

@@ -11,8 +11,11 @@
 #include "clang/Tooling/Refactoring/RefactoringActionRules.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/CachePruning.h"
+
+#include <chrono>
 #include <iostream>
 
+#include "globals.hpp"
 #include "generateMetaTests.hpp"
 #include "parseFuzzSpec.hpp"
 #include "parseFuzzerCalls.hpp"
@@ -51,20 +54,19 @@ static llvm::cl::list<std::string> LibInputList("lib-list",
     llvm::cl::desc("Comma-separated list of files to expose library functionality."),
     llvm::cl::CommaSeparated, llvm::cl::cat(tmpOC));
 
-size_t meta_input_fuzz_count = 3;
-size_t meta_test_rel_count = 7;
-size_t meta_test_count = 20;
-size_t meta_test_depth = 10;
+std::chrono::time_point<std::chrono::system_clock> START_TIME;
+
 llvm::SmallString<256> rewritten_input_file;
 std::string rewrite_data;
 std::string output_file = "";
 std::string set_meta_tests_path = "";
 
-extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
-extern std::set<ExposedFuncDecl, decltype(&ExposedFuncDecl::compare)>
-    exposed_func;
-std::string meta_input_var_prefix = "output_var";
 std::string meta_var_name = "r";
+size_t meta_input_fuzz_count = 3;
+size_t meta_test_rel_count = 7;
+size_t meta_test_count = 20;
+size_t meta_test_depth = 10;
+std::string meta_input_var_prefix = "output_var";
 
 void
 CHECK_CONDITION(bool condition, std::string msg)
@@ -89,6 +91,7 @@ EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
 int
 main(int argc, char const **argv)
 {
+    START_TIME = std::chrono::system_clock::now();
     clang::tooling::CommonOptionsParser op(argc, argv, tmpOC);
     fuzzer::clang::setSeed(FuzzerSeed);
 

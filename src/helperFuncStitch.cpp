@@ -6,9 +6,6 @@ static std::vector<helperFnReplaceInfo> stitch_exprs;
 static size_t replace_index = 0;
 static const clang::CompoundStmt* main_child = nullptr;
 
-extern std::string output_file;
-extern llvm::SmallString<256> rewritten_input_file;
-
 const clang::ast_type_traits::DynTypedNode
 getBaseParent(const clang::ast_type_traits::DynTypedNode dyn_node,
     clang::ASTContext& ctx)
