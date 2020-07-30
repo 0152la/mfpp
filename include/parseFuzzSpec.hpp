@@ -121,6 +121,7 @@ class parseFuzzConstructsVisitor :
         clang::ASTContext& ctx;
         bool in_fuzz_template = false;
         bool first_output_var = true;
+        const clang::Type* meta_input_var_type = nullptr;
 
     public:
         parseFuzzConstructsVisitor(clang::Rewriter& _rw, clang::ASTContext& _ctx) :

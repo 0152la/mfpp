@@ -7,7 +7,8 @@ std::string recursive_func_call_name = "placeholder";
 std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
 std::vector<mrInfo> meta_check_decls;
 
-std::string meta_input_var_type = "";
+const clang::Type* meta_input_var_type = nullptr;
+std::string meta_input_var_type_name = "";
 std::string mr_vd_suffix = "_mrv";
 
 std::map<std::string, REL_TYPE> mr_type_map {
@@ -19,7 +20,7 @@ std::map<std::string, REL_TYPE> mr_type_map {
 
 std::string
 generateMetaTests(std::vector<std::string> input_var_names,
-    std::string meta_input_var_type, std::string indent, clang::Rewriter& rw)
+    const clang::Type* meta_input_var_type, std::string indent, clang::Rewriter& rw)
 {
     std::vector<std::string> meta_family_chain;
     std::set<std::string> meta_families;
@@ -65,7 +66,7 @@ generateMetaTests(std::vector<std::string> input_var_names,
 
 std::string
 generateSingleMetaTest(std::vector<std::string> input_var_names,
-    std::string meta_input_var_type,
+    const clang::Type* meta_input_var_type,
     const std::vector<std::string>& meta_family_chain, clang::Rewriter& rw,
     size_t test_count)
 {
@@ -121,7 +122,7 @@ concretizeMetaRelation(mrGenInfo& mgi)
     {
         if (mgi.first_decl)
         {
-            test_ss << meta_input_var_type << ' ';
+            test_ss << meta_input_var_type_name << ' ';
         }
         test_ss << mgi.curr_mr_var_name << " = ";
     }
@@ -165,7 +166,7 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
                 pvd->getType()->isReferenceType()
                 ? pvd->getType()->getPointeeType()
                 : pvd->getType();
-            if (!pvt.getAsString().compare(meta_input_var_type))
+            if (pvt.getTypePtr() == meta_input_var_type)
             {
                 mr_func_call << mgi.input_var_names.at(implicit_param_counter);
                 implicit_param_counter += 1;
@@ -271,9 +272,27 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
     {
         return;
     }
-    if (meta_input_var_type.empty())
+    // TODO potentially unify metalib::checks namespace
+    if (meta_input_var_type == nullptr &&
+            FD->getQualifiedNameAsString().find("metalib::checks")
+                == std::string::npos)
     {
-        meta_input_var_type = FD->getReturnType().getAsString();
+        meta_input_var_type = FD->getReturnType().getTypePtr();
+        meta_input_var_type_name = meta_input_var_type->getCanonicalTypeInternal().getAsString();
+
+        size_t class_pos = meta_input_var_type_name.find("class");
+        if (class_pos != std::string::npos)
+        {
+            meta_input_var_type_name = meta_input_var_type_name.replace(class_pos, sizeof("class"), "");
+        }
+        //if (const clang::ElaboratedType* et = llvm::dyn_cast<clang::ElaboratedType>(meta_input_var_type))
+        //{
+            //std::string type_keyword = clang::TypeWithKeyword::getKeywordName(et->getKeyword()).str();
+            //size_t keyword_pos = meta_input_var_type_name.find(type_keyword);
+            //CHECK_CONDITION(keyword_pos != std::string::npos,
+                //"Could not find keyword " + type_keyword + " in return type " + meta_input_var_type_name + ".");
+            //meta_input_var_type_name = meta_input_var_type_name.replace(keyword_pos, type_keyword.size(), "");
+        //}
     }
 
     /* Parse qualified function name */
@@ -311,9 +330,19 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
         this->mr_name = mrDeclName.at(3);
     }
 
-    //std::cout << FD->getReturnType().getAsString() << std::endl;
+    //clang::QualType return_type = FD->getReturnType();
+    //std::string return_type_str = return_type.getAsString();
+    //if (const clang::ElaboratedType* et = llvm::dyn_cast<clang::ElaboratedType>(return_type))
+    //{
+        //std::string type_keyword = clang::TypeWithKeyword::getKeywordName(et->getKeyword()).str();
+        //size_t keyword_pos = return_type_str.find(type_keyword);
+        //CHECK_CONDITION(keyword_pos != std::string::npos,
+            //"Could not find keyword " + type_keyword + " in return type " + return_type_str + ".");
+        //return_type_str = return_type_str.replace(keyword_pos, type_keyword.size(), "");
+    //}
+
     assert(this->isCheck() ||
-        !FD->getReturnType().getAsString().compare(meta_input_var_type));
+        FD->getReturnType().getTypePtr() == meta_input_var_type);
 }
 
 std::string
@@ -581,8 +610,7 @@ metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
 void
 metaGenerator::expandMetaTests()
 {
-    //assert(!meta_input_var_type.isNull());
-    assert(!meta_input_var_type.empty());
+    assert(meta_input_var_type != nullptr);
     std::vector<std::string> input_var_names;
     for (size_t i = 0; i < meta_input_fuzz_count; ++i)
     {
@@ -606,11 +634,6 @@ metaGeneratorAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
     fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "metaGeneratorAction");
     return true;
-    //std::cout << "[metaGeneratorAction] Parsing input file ";
-    //std::cout << ci.getSourceManager().getFileEntryForID(
-        //ci.getSourceManager().getMainFileID())->getName().str()
-        //<< std::endl;
-    //return true;
 }
 
 void

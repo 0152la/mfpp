@@ -42,9 +42,9 @@ std::string retrieveMRDeclVar(mrInfo*, const clang::Type*);
 mrInfo retrieveRandMrDecl(std::string, std::string, bool = false);
 mrInfo retrieveRandMrDecl(REL_TYPE, std::string, bool = false);
 
-std::string generateMetaTests(std::vector<std::string>, std::string,
+std::string generateMetaTests(std::vector<std::string>, const clang::Type*,
     const std::string, clang::Rewriter&);
-std::string generateSingleMetaTest(std::vector<std::string>, std::string,
+std::string generateSingleMetaTest(std::vector<std::string>, const clang::Type*,
     const std::vector<std::string>&, clang::Rewriter&, size_t);
 
 std::pair<std::string, std::string> concretizeMetaRelation(mrGenInfo&);

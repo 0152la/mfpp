@@ -16,6 +16,8 @@
 #include <iostream>
 
 #include "globals.hpp"
+#include "srcHelperFunctions.hpp"
+
 #include "generateMetaTests.hpp"
 #include "parseFuzzSpec.hpp"
 #include "parseFuzzerCalls.hpp"
@@ -67,16 +69,6 @@ size_t meta_test_rel_count = 7;
 size_t meta_test_count = 20;
 size_t meta_test_depth = 10;
 std::string meta_input_var_prefix = "output_var";
-
-void
-CHECK_CONDITION(bool condition, std::string msg)
-{
-    if (!condition)
-    {
-        std::cout << "ASSERTION FAILED: " << msg << std::endl;
-        exit(1);
-    }
-}
 
 void
 EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
@@ -153,4 +145,8 @@ main(int argc, char const **argv)
             exit(1);
         }
     }
+
+    std::chrono::duration<double> from_start = std::chrono::system_clock::now() - START_TIME;
+    std::cout << "[" << "\033[1m\033[31m" << from_start.count() << "\033[m" << "]";
+    std::cout << " End fuzz test." << std::endl;
 }

@@ -1,6 +1,8 @@
 #ifndef _GLOBALS_HPP
 #define _GLOBALS_HPP
 
+#include "clang/AST/Type.h"
+
 #include <set>
 
 // generateMetaTests.cpp
@@ -11,7 +13,6 @@ extern size_t meta_test_rel_count;
 extern size_t meta_test_count;
 extern size_t meta_test_depth;
 extern std::string meta_input_var_prefix;
-extern std::string meta_input_var_type;
 
 // generateMetaTests.cpp
 // parseFuzzSpec.cpp
