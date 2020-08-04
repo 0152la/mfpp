@@ -148,5 +148,5 @@ main(int argc, char const **argv)
 
     std::chrono::duration<double> from_start = std::chrono::system_clock::now() - START_TIME;
     std::cout << "[" << "\033[1m\033[31m" << from_start.count() << "\033[m" << "]";
-    std::cout << " End fuzz test." << std::endl;
+    std::cout << " End fuzz test " << TestOutput << "." << std::endl;
 }
