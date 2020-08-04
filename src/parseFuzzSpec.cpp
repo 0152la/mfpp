@@ -201,8 +201,6 @@ parseFuzzConstructsVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
                 if (this->first_output_var)
                 {
                     //to_replace << dre->getType().getAsString() << " ";
-                    (*srtv_it).output_var_type = dre->getType().getAsString();
-                    (*srtv_it).output_var_decl = dre->getSourceRange();
                     this->first_output_var = false;
 
                     if (this->meta_input_var_type == nullptr)
@@ -210,6 +208,16 @@ parseFuzzConstructsVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
                         this->meta_input_var_type = dre->getType().getTypePtr();
                     }
                     assert(this->meta_input_var_type == dre->getType().getTypePtr());
+
+                    (*srtv_it).output_var_type = meta_input_var_type->getCanonicalTypeInternal().getAsString();
+                    // TODO consider a better way to prune unwanted keywords
+                    size_t class_pos = (*srtv_it).output_var_type.find("class");
+                    if (class_pos != std::string::npos)
+                    {
+                        (*srtv_it).output_var_type =
+                            (*srtv_it).output_var_type.replace(class_pos, sizeof("class"), "");
+                    }
+                    (*srtv_it).output_var_decl = dre->getSourceRange();
                 }
                 else
                 {
