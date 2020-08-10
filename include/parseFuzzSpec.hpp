@@ -292,6 +292,4 @@ class parseFuzzConstructsAction : public clang::ASTFrontendAction
         }
 };
 
-extern std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
-
 #endif // _PARSE_FUZZ_SPEC_HPP

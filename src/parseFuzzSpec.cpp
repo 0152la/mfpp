@@ -1,6 +1,6 @@
 #include "parseFuzzSpec.hpp"
 
-std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars;
+std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars(&fuzzVarDecl::compare);
 
 static std::map<std::string, clang::APValue*> config_inputs;
 static std::pair<const clang::CallExpr*, const clang::CallExpr*>
