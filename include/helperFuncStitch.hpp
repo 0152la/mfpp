@@ -27,7 +27,6 @@ class helperFnDeclareInfo
         const clang::FunctionDecl* base_func = nullptr;
         std::vector<clang::Stmt*> body_instrs;
         clang::Stmt* return_body = nullptr;
-        //std::vector<const clang::Stmt*> return_instrs;
         std::set<const clang::DeclRefExpr*> body_dre;
         std::set<const clang::VarDecl*> body_vd;
 
@@ -35,7 +34,7 @@ class helperFnDeclareInfo
 
     std::pair<std::string, std::string>
         getSplitWithReplacements(
-            std::map<const clang::ParmVarDecl*, const clang::Expr*>,
+            std::map<const clang::ParmVarDecl*, const clang::Stmt*>,
             clang::Rewriter&, size_t);
 
     bool is_empty() { return this->base_func == nullptr; };
@@ -47,7 +46,7 @@ class helperFnReplaceInfo
         size_t index;
         const clang::CallExpr* call_expr;
         const clang::Stmt* base_stmt;
-        std::map<const clang::ParmVarDecl*, const clang::Expr*>
+        std::map<const clang::ParmVarDecl*, const clang::Stmt*>
             concrete_params;
 
         helperFnReplaceInfo(const clang::CallExpr*, const clang::Stmt*);

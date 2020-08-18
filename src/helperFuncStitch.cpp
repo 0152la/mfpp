@@ -61,9 +61,37 @@ addNewSplit(const clang::FunctionDecl* fd)
     helper_funcs_splits.at(fd).return_body = return_instr;
 }
 
+static std::string
+parseConcreteVar(const clang::Stmt* s)
+{
+    std::string val = "";
+    if (const clang::DeclRefExpr* dre =
+            llvm::dyn_cast<clang::DeclRefExpr>(s))
+    {
+        return dre->getDecl()->getNameAsString();
+    }
+    else if (const clang::IntegerLiteral* il =
+            llvm::dyn_cast<clang::IntegerLiteral>(s))
+    {
+        return std::to_string(il->getValue().getSExtValue());
+    }
+    else if (const clang::StringLiteral* sl =
+            llvm::dyn_cast<clang::StringLiteral>(s))
+    {
+        return "\"" + sl->getString().str() + "\"";
+    }
+    for (clang::ConstStmtIterator ch_it = s->child_begin();
+        ch_it != s->child_end(); ++ch_it)
+    {
+        return parseConcreteVar(*ch_it);
+    }
+    s->dump();
+    assert(false);
+}
+
 std::pair<std::string, std::string>
 helperFnDeclareInfo::getSplitWithReplacements(
-    std::map<const clang::ParmVarDecl*, const clang::Expr*> concrete_vars,
+    std::map<const clang::ParmVarDecl*, const clang::Stmt*> concrete_vars,
     clang::Rewriter& rw, size_t index)
 {
     for (const clang::DeclRefExpr* dre : this->body_dre)
@@ -72,18 +100,8 @@ helperFnDeclareInfo::getSplitWithReplacements(
             llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl());
             pvd && concrete_vars.count(pvd))
         {
-            std::string replace_text;
-            if (const clang::DeclRefExpr* dre =
-                    llvm::dyn_cast<clang::DeclRefExpr>(concrete_vars.at(pvd)))
-            {
-                replace_text = dre->getDecl()->getNameAsString();
-            }
-            else if (const clang::IntegerLiteral* il =
-                    llvm::dyn_cast<clang::IntegerLiteral>(concrete_vars.at(pvd)))
-            {
-                replace_text = std::to_string(il->getValue().getSExtValue());
-            }
-            rw.ReplaceText(dre->getSourceRange(), replace_text);
+            rw.ReplaceText(dre->getSourceRange(),
+                parseConcreteVar(concrete_vars.at(pvd)));
         }
         else if (const clang::VarDecl* vd =
                 llvm::dyn_cast<clang::VarDecl>(dre->getDecl()))
@@ -115,6 +133,7 @@ helperFnDeclareInfo::getSplitWithReplacements(
     return std::make_pair(rewritten_body, rewritten_return);
 }
 
+
 helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
     const clang::Stmt* _base) : call_expr(_ce), base_stmt(_base)
 {
@@ -128,26 +147,7 @@ helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
     clang::CallExpr::const_arg_iterator call_args_it = _ce->arg_begin();
     for (size_t i = 0; i < _ce->getNumArgs(); ++i)
     {
-        const clang::Stmt* s = *(call_args_it);
-        while (s->child_begin() != s->child_end())
-        {
-            // TODO fix this condition
-            assert(std::next(s->child_begin()) == s->child_end());
-            s = *(s->child_begin());
-        }
-        if (const clang::DeclRefExpr* dre = llvm::dyn_cast<clang::DeclRefExpr>(s))
-        {
-            this->concrete_params.insert(std::make_pair(*(helper_args_it), dre));
-        }
-        else if (const clang::IntegerLiteral* il = llvm::dyn_cast<clang::IntegerLiteral>(s))
-        {
-            this->concrete_params.insert(std::make_pair(*(helper_args_it), il));
-        }
-        else
-        {
-            assert(false);
-        }
-
+        this->concrete_params.insert(std::make_pair(*(helper_args_it), *(call_args_it)));
         helper_args_it++;
         call_args_it++;
     }
