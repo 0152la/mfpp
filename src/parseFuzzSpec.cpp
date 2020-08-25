@@ -11,7 +11,9 @@ static std::map<size_t, std::vector<std::string>>
 static const clang::CompoundStmt* main_child;
 
 static std::vector<fuzzNewCall> fuzz_new_vars;
-static std::vector<std::pair<const clang::CallExpr*, const clang::Stmt*>> mr_fuzz_calls;
+static std::vector<std::tuple<
+    const clang::CallExpr*, const clang::Stmt*, const clang::FunctionDecl*>>
+        mr_fuzz_calls;
 static std::vector<stmtRedeclTemplateVars> stmt_rewrite_map;
 static std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
     common_template_var_decls(&fuzzVarDecl::compare);
@@ -327,10 +329,27 @@ void fuzzExpander::expandLoggedNewMRVars(clang::Rewriter& rw, clang::ASTContext&
 
     // Add MR parameter vars
     fuzzer::clang::resetApiObjs(mr_vars);
-    for (std::pair<const clang::CallExpr*, const clang::Stmt*> mrfc : mr_fuzz_calls)
+    for (std::tuple<const clang::CallExpr*, const clang::Stmt*, const clang::FunctionDecl*>
+            mrfc : mr_fuzz_calls)
     {
-        const clang::CallExpr* ce = mrfc.first;
-        const clang::Stmt* base_stmt = mrfc.second;
+        const clang::CallExpr* ce = std::get<0>(mrfc);
+        const clang::Stmt* base_stmt = std::get<1>(mrfc);
+        const clang::FunctionDecl* mr_decl = std::get<2>(mrfc);
+        mr_vars.clear();
+
+        //ce->dump();
+        //base_stmt->dump();
+        //mr_decl->dump();
+
+        clang::FunctionDecl::param_const_iterator mr_param_it =
+            mr_decl->param_begin();
+        while (mr_param_it != mr_decl->param_end())
+        {
+            mr_vars.insert(std::make_pair((*mr_param_it)->getNameAsString(),
+                (*mr_param_it)->getType().getAsString())) ;
+            ++mr_param_it;
+        }
+        fuzzer::clang::resetApiObjs(mr_vars);
 
         const llvm::StringRef indent =
             clang::Lexer::getIndentationForLine(base_stmt->getBeginLoc(),
@@ -383,7 +402,8 @@ mrNewVariableFuzzerLogger::run(
     assert(ce);
     const clang::Stmt* base_stmt = Result.Nodes.getNodeAs<clang::Stmt>("baseStmt");
     assert(base_stmt);
-    mr_fuzz_calls.push_back(std::make_pair(ce, base_stmt));
+    const clang::FunctionDecl* mr_decl = Result.Nodes.getNodeAs<clang::FunctionDecl>("mrDecl");
+    mr_fuzz_calls.push_back(std::make_tuple(ce, base_stmt, mr_decl));
 }
 
 //==============================================================================
@@ -431,11 +451,14 @@ newVariableFuzzerMatcher::newVariableFuzzerMatcher(clang::Rewriter& _rw) :
             matcher.addMatcher(
                 clang::ast_matchers::callExpr(
                 clang::ast_matchers::allOf(
+
+                // Only check in metamorphic relations
                 clang::ast_matchers::unless(
                 clang::ast_matchers::hasAncestor(
                 clang::ast_matchers::functionDecl(
                 clang::ast_matchers::isMain()))),
 
+                // ... while recording full call statement ...
                 clang::ast_matchers::hasAncestor(
                 clang::ast_matchers::stmt(
                 clang::ast_matchers::hasParent(
@@ -443,9 +466,11 @@ newVariableFuzzerMatcher::newVariableFuzzerMatcher(clang::Rewriter& _rw) :
                 clang::ast_matchers::hasParent(
                 clang::ast_matchers::functionDecl(
                 clang::ast_matchers::hasParent(
-                clang::ast_matchers::translationUnitDecl()))))))
+                clang::ast_matchers::translationUnitDecl()))
+                    .bind("mrDecl")))))
                     .bind("baseStmt")),
 
+                // ... of fuzz_new fuzzer calls.
                 clang::ast_matchers::callee(
                 clang::ast_matchers::functionDecl(
                 clang::ast_matchers::hasName(

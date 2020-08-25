@@ -11,9 +11,13 @@ getBaseParent(const clang::ast_type_traits::DynTypedNode dyn_node,
     clang::ASTContext& ctx)
 {
     clang::ASTContext::DynTypedNodeList node_parents = ctx.getParents(dyn_node);
-    assert(main_child);
     assert(node_parents.size() == 1);
-    if (node_parents[0].get<clang::CompoundStmt>() == main_child)
+    if (main_child && node_parents[0].get<clang::CompoundStmt>() == main_child)
+    {
+        return dyn_node;
+    }
+    // TODO check correctly against list of MR function_decls
+    else if (node_parents[0].get<clang::FunctionDecl>())
     {
         return dyn_node;
     }
