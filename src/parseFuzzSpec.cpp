@@ -1,6 +1,8 @@
 #include "parseFuzzSpec.hpp"
 
-std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> declared_fuzz_vars(&fuzzVarDecl::compare);
+//std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> template_fuzz_vars(&fuzzVarDecl::compare);
+//std::map<fuzzVarDecl, std::set<const clang::VarDecl*>, decltype(&fuzzVarDecl::compare)>
+    //template_fuzz_vars(&fuzzVarDecl::compare);
 
 static std::map<std::string, clang::APValue*> config_inputs;
 static std::pair<const clang::CallExpr*, const clang::CallExpr*>
@@ -11,6 +13,7 @@ static std::map<size_t, std::vector<std::string>>
 static const clang::CompoundStmt* main_child;
 
 static std::vector<fuzzNewCall> fuzz_new_vars;
+std::vector<fuzzVarDecl> template_fuzz_vars;
 static std::vector<std::tuple<
     const clang::CallExpr*, const clang::Stmt*, const clang::FunctionDecl*>>
         mr_fuzz_calls;
@@ -146,8 +149,9 @@ parseFuzzConstructsVisitor::VisitVarDecl(clang::VarDecl* vd)
         (*srtv_it).decl_var_additions.push_back(
             vd->getLocation().getLocWithOffset(vd->getName().size()));
         input_template_var_decls.insert(vd);
-        declared_fuzz_vars.emplace(vd->getNameAsString(),
-            vd->getType().getAsString());
+        template_fuzz_vars.emplace_back(vd);
+        //template_fuzz_vars.emplace(vd->getNameAsString(),
+            //vd->getType().getAsString());
     }
     return true;
 }
@@ -244,7 +248,8 @@ parseFuzzConstructsVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
 
 std::set<std::pair<std::string, std::string>>
 fuzzExpander::getDuplicateDeclVars(
-    std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> vars,
+    //std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)> vars,
+    std::vector<fuzzVarDecl> vars,
     size_t output_var_count)
 {
     std::set<std::pair<std::string, std::string>> duplicate_vars;
@@ -275,8 +280,9 @@ void
 fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
 {
     size_t curr_input_count = 0;
-    fuzzer::clang::resetApiObjs(
-        getDuplicateDeclVars(declared_fuzz_vars, curr_input_count));
+    std::vector<fuzzVarDecl>::iterator tfv = template_fuzz_vars.begin();
+    //fuzzer::clang::resetApiObjs(
+        //getDuplicateDeclVars(template_fuzz_vars, curr_input_count));
     for (fuzzNewCall fnc : fuzz_new_vars)
     {
         if (fnc.start_fuzz_call)
@@ -287,15 +293,32 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
             rw.RemoveText(fnc.start_fuzz_call->getSourceRange());
             continue;
         }
-        if (fnc.reset_fuzz_var_decl)
+        if (fnc.reset_fuzz_var_decl && tfv != template_fuzz_vars.end())
         {
             assert(!fnc.base_stmt && !fnc.fuzz_ref &&
                 !fnc.start_fuzz_call && fnc.reset_fuzz_call);
-            fuzzer::clang::resetApiObjs(
-                getDuplicateDeclVars(
-                    declared_fuzz_vars, ++curr_input_count));
+            tfv = template_fuzz_vars.begin();
+
+            //fuzzer::clang::resetApiObjs(
+                //getDuplicateDeclVars(
+                    //template_fuzz_vars, ++curr_input_count));
             rw.RemoveText(fnc.reset_fuzz_call->getSourceRange());
             continue;
+        }
+        else
+        {
+            fnc.template_var_vd->dump();
+            while(fnc.template_var_vd->getNameAsString().find(
+                    (*tfv).name) == std::string::npos)
+            {
+                tfv++;
+                CHECK_CONDITION(tfv != template_fuzz_vars.end(),
+                    "Could not find VarDecl for var " + fnc.template_var_vd->getNameAsString());
+            }
+            // TODO check if rhs of VarDecl contains references to fuzz_var or fuzz_new
+            fuzzer::clang::resetApiObjs(getDuplicateDeclVars(
+                    std::vector<fuzzVarDecl>(template_fuzz_vars.begin(), tfv),
+                    curr_input_count));
         }
         const clang::Stmt* base_stmt = fnc.base_stmt;
         const clang::DeclRefExpr* fuzz_ref = fnc.fuzz_ref;
@@ -379,16 +402,15 @@ newVariableFuzzerParser::run(
             Result.Nodes.getNodeAs<clang::Stmt>("baseStmt"))
     {
         fnc.base_stmt = s;
+        fnc.template_var_vd = Result.Nodes.getNodeAs<clang::VarDecl>("fuzzVarDecl");
+        fnc.fuzz_ref = Result.Nodes.getNodeAs<clang::DeclRefExpr>("fuzzRef");
+        assert(fnc.template_var_vd);
+        assert(fnc.fuzz_ref);
     }
-    if (const clang::DeclRefExpr* dre =
-            Result.Nodes.getNodeAs<clang::DeclRefExpr>("fuzzRef"))
+    else
     {
-        fnc.fuzz_ref = dre;
-    }
-    if (const clang::CallExpr* ce =
-            Result.Nodes.getNodeAs<clang::CallExpr>("outputVarEnd"))
-    {
-        fnc.reset_fuzz_call = ce;
+        fnc.reset_fuzz_call = Result.Nodes.getNodeAs<clang::CallExpr>("outputVarEnd");
+        assert(fnc.reset_fuzz_call);
         fnc.reset_fuzz_var_decl = true;
     }
     fuzz_new_vars.push_back(fnc);
@@ -430,23 +452,43 @@ newVariableFuzzerMatcher::newVariableFuzzerMatcher(clang::Rewriter& _rw) :
     remover(newVariableStatementRemover(_rw))
 {
             matcher.addMatcher(
-                clang::ast_matchers::stmt(
+                clang::ast_matchers::declStmt(
                 clang::ast_matchers::allOf(
-                /* Base stmt two away from main.. */
-                clang::ast_matchers::hasParent(
-                clang::ast_matchers::stmt(
-                clang::ast_matchers::hasParent(
-                clang::ast_matchers::functionDecl(
-                clang::ast_matchers::isMain())))),
-                /* .. which contains call to fuzz_new */
-                clang::ast_matchers::hasDescendant(
-                clang::ast_matchers::declRefExpr(
-                clang::ast_matchers::to(
-                clang::ast_matchers::functionDecl(
-                clang::ast_matchers::hasName(
-                "fuzz::fuzz_new"))))
-                    .bind("fuzzRef"))) )
-                    .bind("baseStmt"), &parser);
+                    clang::ast_matchers::hasAncestor(
+                    clang::ast_matchers::functionDecl(
+                    clang::ast_matchers::isMain())),
+
+                    clang::ast_matchers::hasDescendant(
+                    clang::ast_matchers::varDecl()
+                        .bind("fuzzVarDecl")),
+
+                    clang::ast_matchers::hasDescendant(
+                    clang::ast_matchers::declRefExpr(
+                    clang::ast_matchers::to(
+                    clang::ast_matchers::functionDecl(
+                    clang::ast_matchers::hasName(
+                    "fuzz::fuzz_new"))))
+                        .bind("fuzzRef"))))
+                        .bind("baseStmt"), &template_fuzz_var_logger);
+
+            //matcher.addMatcher(
+                //clang::ast_matchers::stmt(
+                //clang::ast_matchers::allOf(
+                //[> Base stmt two away from main.. <]
+                //clang::ast_matchers::hasParent(
+                //clang::ast_matchers::stmt(
+                //clang::ast_matchers::hasParent(
+                //clang::ast_matchers::functionDecl(
+                //clang::ast_matchers::isMain())))),
+                //[> .. which contains call to fuzz_new <]
+                //clang::ast_matchers::hasDescendant(
+                //clang::ast_matchers::declRefExpr(
+                //clang::ast_matchers::to(
+                //clang::ast_matchers::functionDecl(
+                //clang::ast_matchers::hasName(
+                //"fuzz::fuzz_new"))))
+                    //.bind("fuzzRef"))))
+                    //.bind("baseStmt"), &parser);
 
             matcher.addMatcher(
                 clang::ast_matchers::callExpr(
@@ -483,7 +525,7 @@ newVariableFuzzerMatcher::newVariableFuzzerMatcher(clang::Rewriter& _rw) :
                 clang::ast_matchers::functionDecl(
                 clang::ast_matchers::hasName(
                 "fuzz::end"))))
-                    .bind("outputVarEnd"), &parser);
+                    .bind("outputVarEnd"), &template_fuzz_var_logger);
 
             matcher.addMatcher(
                 clang::ast_matchers::callExpr(
@@ -519,8 +561,9 @@ templateLocLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Resu
             vd && !inFuzzTemplate(vd, SM))
     {
         //vd->dump();
-        common_template_var_decls.emplace(vd->getNameAsString(),
-            vd->getType().getAsString());
+        //common_template_var_decls.emplace(vd->getNameAsString(),
+            //vd->getType().getAsString());
+        common_template_var_decls.emplace(vd);
     }
 }
 

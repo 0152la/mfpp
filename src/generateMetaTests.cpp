@@ -272,30 +272,13 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
     {
         return;
     }
-    // TODO potentially unify metalib::checks namespace
-    if (meta_input_var_type == nullptr &&
-            FD->getQualifiedNameAsString().find("metalib::checks")
-                == std::string::npos)
-    {
-        meta_input_var_type = FD->getReturnType().getTypePtr();
-        meta_input_var_type_name = meta_input_var_type->getCanonicalTypeInternal().getAsString();
-
-        size_t class_pos = meta_input_var_type_name.find("class");
-        if (class_pos != std::string::npos)
-        {
-            meta_input_var_type_name = meta_input_var_type_name.replace(class_pos, sizeof("class"), "");
-        }
-        //if (const clang::ElaboratedType* et = llvm::dyn_cast<clang::ElaboratedType>(meta_input_var_type))
-        //{
-            //std::string type_keyword = clang::TypeWithKeyword::getKeywordName(et->getKeyword()).str();
-            //size_t keyword_pos = meta_input_var_type_name.find(type_keyword);
-            //CHECK_CONDITION(keyword_pos != std::string::npos,
-                //"Could not find keyword " + type_keyword + " in return type " + meta_input_var_type_name + ".");
-            //meta_input_var_type_name = meta_input_var_type_name.replace(keyword_pos, type_keyword.size(), "");
-        //}
-    }
 
     /* Parse qualified function name */
+    // mrDeclName fields:
+    //      0 > `metalib` namespace
+    //      1 > `generators`/`relations`/`checks`
+    //      2 > family
+    //      3 > MR name
     std::string fd_name(FD->getQualifiedNameAsString()), delim("::");
     std::vector<std::string> mrDeclName;
     size_t curr = fd_name.find(delim), prv = 0;
@@ -306,15 +289,6 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
         curr = fd_name.find(delim, prv);
     }
     mrDeclName.push_back(fd_name.substr(prv, curr - prv));
-
-    /* Gather instructions and set return instruction */
-    clang::CompoundStmt* cs = llvm::dyn_cast<clang::CompoundStmt>(
-        FD->getBody());
-    assert(cs);
-    for (clang::Stmt* child : cs->children())
-    {
-        this->body_instrs.push_back(child);
-    }
 
     /* Set MR identifiers */
     assert(mrDeclName.size() >= 3);
@@ -330,19 +304,51 @@ mrInfo::mrInfo(const clang::FunctionDecl* FD) : helperFnDeclareInfo(FD)
         this->mr_name = mrDeclName.at(3);
     }
 
-    //clang::QualType return_type = FD->getReturnType();
-    //std::string return_type_str = return_type.getAsString();
-    //if (const clang::ElaboratedType* et = llvm::dyn_cast<clang::ElaboratedType>(return_type))
-    //{
-        //std::string type_keyword = clang::TypeWithKeyword::getKeywordName(et->getKeyword()).str();
-        //size_t keyword_pos = return_type_str.find(type_keyword);
-        //CHECK_CONDITION(keyword_pos != std::string::npos,
-            //"Could not find keyword " + type_keyword + " in return type " + return_type_str + ".");
-        //return_type_str = return_type_str.replace(keyword_pos, type_keyword.size(), "");
-    //}
+    /* Set meta var type if parsing a relation */
+    if (meta_input_var_type == nullptr &&
+            this->mr_type == REL_TYPE::RELATION)
+    {
+        meta_input_var_type = FD->getReturnType().getTypePtr();
+        if (const clang::TypedefType* td = llvm::dyn_cast<clang::TypedefType>(meta_input_var_type))
+        {
+            meta_input_var_type_name = td->getDecl()->getNameAsString();
+        }
+        else
+        {
+            meta_input_var_type_name = meta_input_var_type->getCanonicalTypeInternal().getAsString();
+        }
 
-    assert(this->isCheck() ||
-        FD->getReturnType().getTypePtr() == meta_input_var_type);
+        //std::vector<std::string> keywords {"class", "struct"};
+        //for (std::string kw : keywords)
+        //{
+            //size_t kw_pos = meta_input_var_type_name.find(kw);
+            //while (kw_pos != std::string::npos)
+            //{
+                //meta_input_var_type_name = meta_input_var_type_name.replace(kw_pos,kw.length(), "");
+                //kw_pos = meta_input_var_type_name.find(kw);
+            //}
+        //}
+        fuzzer::clang::addLibType(meta_input_var_type_name);
+        //if (const clang::ElaboratedType* et = llvm::dyn_cast<clang::ElaboratedType>(meta_input_var_type))
+        //{
+            //std::string type_keyword = clang::TypeWithKeyword::getKeywordName(et->getKeyword()).str();
+            //size_t keyword_pos = meta_input_var_type_name.find(type_keyword);
+            //CHECK_CONDITION(keyword_pos != std::string::npos,
+                //"Could not find keyword " + type_keyword + " in return type " + meta_input_var_type_name + ".");
+            //meta_input_var_type_name = meta_input_var_type_name.replace(keyword_pos, type_keyword.size(), "");
+        //}
+    }
+    assert(this->mr_type != REL_TYPE::RELATION ||
+        meta_input_var_type == FD->getReturnType().getTypePtr());
+
+    /* Gather instructions and set return instruction */
+    clang::CompoundStmt* cs = llvm::dyn_cast<clang::CompoundStmt>(
+        FD->getBody());
+    assert(cs);
+    for (clang::Stmt* child : cs->children())
+    {
+        this->body_instrs.push_back(child);
+    }
 }
 
 std::string

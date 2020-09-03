@@ -39,12 +39,17 @@ struct stmtRedeclTemplateVars
 struct fuzzVarDecl
 {
     public:
+        const clang::VarDecl* vd;
         std::string name;
         std::string type;
         //clang::QualType type;
 
-        fuzzVarDecl(std::string _name, std::string _type) :
-            name(_name), type(_type) {};
+        //fuzzVarDecl(std::string _name, std::string _type) :
+            //name(_name), type(_type) {};
+        fuzzVarDecl(const clang::VarDecl* _vd) :
+            vd(_vd), name(vd->getNameAsString()),
+            type(vd->getType().getAsString()) {};
+        ~fuzzVarDecl() {};
 
         static bool
         compare(const fuzzVarDecl& lhs, const fuzzVarDecl& rhs)
@@ -57,6 +62,7 @@ struct fuzzNewCall
 {
     public:
         const clang::Stmt* base_stmt = nullptr;
+        const clang::VarDecl* template_var_vd = nullptr;
         const clang::CallExpr* fuzz_call = nullptr;
         const clang::DeclRefExpr* fuzz_ref = nullptr;
 
@@ -122,6 +128,7 @@ class parseFuzzConstructsVisitor :
         bool in_fuzz_template = false;
         bool first_output_var = true;
         const clang::Type* meta_input_var_type = nullptr;
+        std::set<std::string> parsed_var_decls;
 
     public:
         parseFuzzConstructsVisitor(clang::Rewriter& _rw, clang::ASTContext& _ctx) :
@@ -140,7 +147,8 @@ class fuzzExpander
     public:
         static std::set<std::pair<std::string, std::string>>
         getDuplicateDeclVars(
-            std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>,
+            //std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>,
+            std::vector<fuzzVarDecl>,
             size_t);
 
         static void expandLoggedNewVars(clang::Rewriter&, clang::ASTContext&);
@@ -179,8 +187,8 @@ class newVariableFuzzerMatcher : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder matcher;
-        newVariableFuzzerParser parser;
         newVariableStatementRemover remover;
+        newVariableFuzzerParser template_fuzz_var_logger;
         mrNewVariableFuzzerLogger mr_fuzzer_logger;
 
     public:
