@@ -18,6 +18,7 @@ static std::vector<std::tuple<
     const clang::CallExpr*, const clang::Stmt*, const clang::FunctionDecl*>>
         mr_fuzz_calls;
 static std::vector<stmtRedeclTemplateVars> stmt_rewrite_map;
+static std::vector<std::pair<const clang::CallExpr*, size_t>> miv_get_calls;
 static std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>
     common_template_var_decls(&fuzzVarDecl::compare);
 
@@ -31,6 +32,12 @@ inFuzzTemplate(const clang::Decl* d, clang::SourceManager& SM)
     clang::BeforeThanCompare<clang::SourceLocation> btc(SM);
     return btc(d->getBeginLoc(), fuzz_template_bounds.second->getEndLoc()) &&
         btc(fuzz_template_bounds.first->getBeginLoc(), d->getEndLoc());
+}
+
+std::string
+getMetaInputVarName(size_t id)
+{
+    return meta_input_var_prefix + std::to_string(id);
 }
 
 void
@@ -229,15 +236,6 @@ parseFuzzConstructsVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
                 {
                     (*srtv_it).output_var_additions.push_back(dre->getSourceRange());
                 }
-                //for (size_t i = 0; i < meta_input_fuzz_count; ++i)
-                //{
-                    //std::stringstream to_replace_tmp(to_replace.str());
-                    //clang::Rewriter rw_tmp(rw.getSourceMgr(), rw.getLangOpts());
-                    //rw_tmp.ReplaceText(sr, llvm::StringRef(to_replace_tmp.str()));
-                    //input_template_copies.at(i).push_back(
-                        //rw_tmp.getRewrittenText(sr));
-                //}
-                //rw.RemoveText(sr);
             }
         }
     }
@@ -307,7 +305,7 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
         }
         else
         {
-            fnc.template_var_vd->dump();
+            //fnc.template_var_vd->dump();
             while(fnc.template_var_vd->getNameAsString().find(
                     (*tfv).name) == std::string::npos)
             {
@@ -545,26 +543,38 @@ templateLocLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Resu
             Result.Nodes.getNodeAs<clang::CallExpr>("startTemplate"))
     {
         fuzz_template_bounds.first = start_ce;
+        return;
     }
     else if (const clang::CallExpr* end_ce =
             Result.Nodes.getNodeAs<clang::CallExpr>("endTemplate"))
     {
         fuzz_template_bounds.second = end_ce;
+        return;
     }
     else if (const clang::CompoundStmt* cs =
             Result.Nodes.getNodeAs<clang::CompoundStmt>("mainChild"))
     {
         main_child = cs;
+        return;
     }
     else if (const clang::VarDecl* vd =
-            Result.Nodes.getNodeAs<clang::VarDecl>("mainVarDecl");
-            vd && !inFuzzTemplate(vd, SM))
+            Result.Nodes.getNodeAs<clang::VarDecl>("mainVarDecl"))
     {
-        //vd->dump();
-        //common_template_var_decls.emplace(vd->getNameAsString(),
-            //vd->getType().getAsString());
-        common_template_var_decls.emplace(vd);
+        if (!inFuzzTemplate(vd, SM))
+        {
+            common_template_var_decls.emplace(vd);
+        }
+        return;
     }
+    else if (const clang::CallExpr* ce =
+            Result.Nodes.getNodeAs<clang::CallExpr>("mivGetCE"))
+    {
+        assert(ce->getNumArgs() == 1);
+        miv_get_calls.emplace_back(ce,
+            Result.Nodes.getNodeAs<clang::IntegerLiteral>("mivID")->getValue().getSExtValue());
+        return;
+    }
+    assert(false);
 }
 
 //==============================================================================
@@ -606,6 +616,19 @@ templateDuplicator::templateDuplicator(clang::Rewriter& _rw) :
             clang::ast_matchers::parmVarDecl())
         ))
             .bind("mainVarDecl"), &logger);
+
+    matcher.addMatcher(
+        clang::ast_matchers::callExpr(
+        clang::ast_matchers::allOf(
+            clang::ast_matchers::callee(
+            clang::ast_matchers::functionDecl(
+            clang::ast_matchers::hasName(
+                meta_input_var_get_prefix))),
+
+            clang::ast_matchers::hasArgument(
+                0, clang::ast_matchers::integerLiteral()
+                .bind("mivID"))))
+                .bind("mivGetCE"), &logger);
 
     for (size_t i = 0; i < meta_input_fuzz_count; ++i)
     {
@@ -676,14 +699,14 @@ templateDuplicator::HandleTranslationUnit(clang::ASTContext& ctx)
             {
                 std::stringstream output_var_decl_rw;
                 output_var_decl_rw << stmt_redecl.output_var_type;
-                output_var_decl_rw << " " << meta_input_var_prefix << i;
+                output_var_decl_rw << " " << getMetaInputVarName(i);
                 rw_tmp.ReplaceText(stmt_redecl.output_var_decl,
                     output_var_decl_rw.str());
             }
             for (clang::SourceRange sr :
                     stmt_redecl.output_var_additions)
             {
-                rw_tmp.ReplaceText(sr, meta_input_var_prefix + std::to_string(i));
+                rw_tmp.ReplaceText(sr, getMetaInputVarName(i));
             }
             input_template_copies.at(i).
                 push_back((indent + rw_tmp.getRewrittenText(
@@ -692,24 +715,33 @@ templateDuplicator::HandleTranslationUnit(clang::ASTContext& ctx)
         rw.RemoveText(stmt_redecl.base_stmt->getSourceRange());
     }
 
-    assert(fuzz_template_bounds.second);
-    for (std::pair<size_t, std::vector<std::string>> fuzzed_template_copies :
-            input_template_copies)
+    if (fuzz_template_bounds.first)
     {
-        std::string template_copy_str = std::accumulate(
-            fuzzed_template_copies.second.begin(),
-            fuzzed_template_copies.second.end(), std::string(),
-            [](std::string acc, std::string next_instr)
-            {
-                return acc + next_instr + ";\n";
+        assert(fuzz_template_bounds.second);
 
-            });
-        rw.InsertText(fuzz_template_bounds.second->getBeginLoc(),
-            template_copy_str);
+        for (std::pair<size_t, std::vector<std::string>> fuzzed_template_copies :
+                input_template_copies)
+        {
+            std::string template_copy_str = std::accumulate(
+                fuzzed_template_copies.second.begin(),
+                fuzzed_template_copies.second.end(), std::string(),
+                [](std::string acc, std::string next_instr)
+                {
+                    return acc + next_instr + ";\n";
+
+                });
+            rw.InsertText(fuzz_template_bounds.second->getBeginLoc(),
+                template_copy_str);
+        }
+    }
+
+    for (std::pair<const clang::CallExpr*, size_t> miv_get_pair : miv_get_calls)
+    {
+        rw.ReplaceText(miv_get_pair.first->getSourceRange(),
+            getMetaInputVarName(miv_get_pair.second));
     }
 
     //rw.RemoveText(fuzz_template_bounds.first->getSourceRange());
-
 };
 
 bool
@@ -727,7 +759,7 @@ templateDuplicatorAction::EndSourceFileAction()
 
     std::error_code ec;
     int fd;
-    llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
+    llvm::sys::fs::createTemporaryFile("mtFuzz", ".cpp", fd,
         rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);

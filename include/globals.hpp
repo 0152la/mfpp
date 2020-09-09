@@ -7,12 +7,14 @@
 
 // generateMetaTests.cpp
 // parseFuzzSpec.cpp
+// fuzzMetaTest.cpp
 extern std::string meta_var_name;
 extern size_t meta_input_fuzz_count;
 extern size_t meta_test_rel_count;
 extern size_t meta_test_count;
 extern size_t meta_test_depth;
 extern std::string meta_input_var_prefix;
+extern std::string meta_input_var_get_prefix;
 
 // generateMetaTests.cpp
 // parseFuzzSpec.cpp

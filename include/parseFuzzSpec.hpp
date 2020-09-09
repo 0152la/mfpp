@@ -22,6 +22,7 @@
 #include "generateMetaTests.hpp"
 
 bool inFuzzTemplate(const clang::Decl*, clang::SourceManager& SM);
+std::string getMetaInputVarName(size_t);
 
 struct stmtRedeclTemplateVars
 {

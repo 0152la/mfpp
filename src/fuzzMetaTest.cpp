@@ -69,6 +69,7 @@ size_t meta_test_rel_count = 7;
 size_t meta_test_count = 20;
 size_t meta_test_depth = 10;
 std::string meta_input_var_prefix = "output_var";
+std::string meta_input_var_get_prefix = "output_var_get";
 
 void
 EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
@@ -86,6 +87,7 @@ main(int argc, char const **argv)
     START_TIME = std::chrono::system_clock::now();
     clang::tooling::CommonOptionsParser op(argc, argv, tmpOC);
     fuzzer::clang::setSeed(FuzzerSeed);
+    std::cout << "[fuzzMetaTest] Seed set " << FuzzerSeed << std::endl;
 
     clang::tooling::ClangTool libTool(op.getCompilations(),
         LibInputList);
