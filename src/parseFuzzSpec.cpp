@@ -306,12 +306,16 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
         else
         {
             //fnc.template_var_vd->dump();
-            while(fnc.template_var_vd->getNameAsString().find(
-                    (*tfv).name) == std::string::npos)
+            if (fnc.template_var_vd)
             {
-                tfv++;
-                CHECK_CONDITION(tfv != template_fuzz_vars.end(),
-                    "Could not find VarDecl for var " + fnc.template_var_vd->getNameAsString());
+                while(fnc.template_var_vd->getNameAsString().find(
+                    (*tfv).name) == std::string::npos)
+                {
+                    tfv++;
+                    CHECK_CONDITION(tfv != template_fuzz_vars.end(),
+                        "Could not find VarDecl for var " +
+                        fnc.template_var_vd->getNameAsString());
+                }
             }
             // TODO check if rhs of VarDecl contains references to fuzz_var or fuzz_new
             fuzzer::clang::resetApiObjs(getDuplicateDeclVars(
@@ -402,7 +406,6 @@ newVariableFuzzerParser::run(
         fnc.base_stmt = s;
         fnc.template_var_vd = Result.Nodes.getNodeAs<clang::VarDecl>("fuzzVarDecl");
         fnc.fuzz_ref = Result.Nodes.getNodeAs<clang::DeclRefExpr>("fuzzRef");
-        assert(fnc.template_var_vd);
         assert(fnc.fuzz_ref);
     }
     else
@@ -450,15 +453,19 @@ newVariableFuzzerMatcher::newVariableFuzzerMatcher(clang::Rewriter& _rw) :
     remover(newVariableStatementRemover(_rw))
 {
             matcher.addMatcher(
-                clang::ast_matchers::declStmt(
+                clang::ast_matchers::stmt(
                 clang::ast_matchers::allOf(
-                    clang::ast_matchers::hasAncestor(
+                    clang::ast_matchers::hasParent(
+                    clang::ast_matchers::compoundStmt(
+                    clang::ast_matchers::hasParent(
                     clang::ast_matchers::functionDecl(
-                    clang::ast_matchers::isMain())),
+                    clang::ast_matchers::isMain())))),
 
+                    clang::ast_matchers::anyOf(
+                    clang::ast_matchers::anything(),
                     clang::ast_matchers::hasDescendant(
                     clang::ast_matchers::varDecl()
-                        .bind("fuzzVarDecl")),
+                        .bind("fuzzVarDecl"))),
 
                     clang::ast_matchers::hasDescendant(
                     clang::ast_matchers::declRefExpr(
