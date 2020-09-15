@@ -291,15 +291,12 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
             rw.RemoveText(fnc.start_fuzz_call->getSourceRange());
             continue;
         }
-        if (fnc.reset_fuzz_var_decl && tfv != template_fuzz_vars.end())
+        if (fnc.reset_fuzz_var_decl /*&& tfv != template_fuzz_vars.end()*/)
         {
             assert(!fnc.base_stmt && !fnc.fuzz_ref &&
                 !fnc.start_fuzz_call && fnc.reset_fuzz_call);
             tfv = template_fuzz_vars.begin();
 
-            //fuzzer::clang::resetApiObjs(
-                //getDuplicateDeclVars(
-                    //template_fuzz_vars, ++curr_input_count));
             rw.RemoveText(fnc.reset_fuzz_call->getSourceRange());
             continue;
         }
