@@ -42,13 +42,14 @@ struct fuzzVarDecl
     public:
         const clang::VarDecl* vd;
         const clang::Stmt* base_stmt;
-        bool in_template = false;
+        bool in_template;
         //clang::QualType type;
 
         //fuzzVarDecl(std::string _name, std::string _type) :
             //name(_name), type(_type) {};
-        fuzzVarDecl(const clang::VarDecl* _vd, const clang::Stmt* _bs = nullptr) :
-            vd(_vd), base_stmt(_bs) {};
+        fuzzVarDecl(const clang::VarDecl* _vd, const clang::Stmt* _bs = nullptr,
+            bool _in_template = false) :
+            vd(_vd), base_stmt(_bs), in_template(_in_template) {};
         ~fuzzVarDecl() {};
 
         std::string getName() const
@@ -72,8 +73,7 @@ struct fuzzNewCall
         const clang::DeclRefExpr* fuzz_ref = nullptr;
 
         const clang::CallExpr* start_fuzz_call = nullptr;
-        const clang::CallExpr* reset_fuzz_call = nullptr;
-        bool reset_fuzz_var_decl = false;
+        const clang::CallExpr* end_fuzz_call = nullptr;
 };
 
 class fuzzConfigRecorder : public clang::ast_matchers::MatchFinder::MatchCallback
@@ -160,15 +160,11 @@ class fuzzExpander
         static void expandLoggedNewMRVars(clang::Rewriter&, clang::ASTContext&);
 };
 
-class templateFuzzVarLogger : public clang::ast_matchers::MatchFinder::MatchCallback
-{
-    public:
-        virtual void
-        run(const clang::ast_matchers::MatchFinder::MatchResult&);
-};
-
 class templateVarLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
+    private:
+        bool in_template = false;
+
     public:
         virtual void
         run(const clang::ast_matchers::MatchFinder::MatchResult&);
@@ -200,7 +196,6 @@ class newVariableFuzzerMatcher : public clang::ASTConsumer
     private:
         clang::ast_matchers::MatchFinder matcher;
         newVariableStatementRemover remover;
-        templateFuzzVarLogger template_fuzz_var_logger;
         templateVarLogger template_var_logger;
         mrNewVariableFuzzerLogger mr_fuzzer_logger;
 
