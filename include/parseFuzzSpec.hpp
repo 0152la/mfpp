@@ -41,21 +41,25 @@ struct fuzzVarDecl
 {
     public:
         const clang::VarDecl* vd;
-        std::string name;
-        std::string type;
+        const clang::Stmt* base_stmt;
+        bool in_template = false;
         //clang::QualType type;
 
         //fuzzVarDecl(std::string _name, std::string _type) :
             //name(_name), type(_type) {};
-        fuzzVarDecl(const clang::VarDecl* _vd) :
-            vd(_vd), name(vd->getNameAsString()),
-            type(vd->getType().getAsString()) {};
+        fuzzVarDecl(const clang::VarDecl* _vd, const clang::Stmt* _bs = nullptr) :
+            vd(_vd), base_stmt(_bs) {};
         ~fuzzVarDecl() {};
+
+        std::string getName() const
+            { return this->vd->getNameAsString(); };
+        std::string getTypeName() const
+            { return this->vd->getType().getAsString(); };
 
         static bool
         compare(const fuzzVarDecl& lhs, const fuzzVarDecl& rhs)
         {
-            return lhs.name.compare(rhs.name) < 0;
+            return lhs.getName().compare(rhs.getName()) < 0;
         }
 };
 
@@ -149,14 +153,21 @@ class fuzzExpander
         static std::set<std::pair<std::string, std::string>>
         getDuplicateDeclVars(
             //std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>,
-            std::vector<fuzzVarDecl>,
+            std::vector<std::pair<const clang::Stmt*, fuzzVarDecl>>,
             size_t);
 
         static void expandLoggedNewVars(clang::Rewriter&, clang::ASTContext&);
         static void expandLoggedNewMRVars(clang::Rewriter&, clang::ASTContext&);
 };
 
-class newVariableFuzzerParser : public clang::ast_matchers::MatchFinder::MatchCallback
+class templateFuzzVarLogger : public clang::ast_matchers::MatchFinder::MatchCallback
+{
+    public:
+        virtual void
+        run(const clang::ast_matchers::MatchFinder::MatchResult&);
+};
+
+class templateVarLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
     public:
         virtual void
@@ -189,7 +200,8 @@ class newVariableFuzzerMatcher : public clang::ASTConsumer
     private:
         clang::ast_matchers::MatchFinder matcher;
         newVariableStatementRemover remover;
-        newVariableFuzzerParser template_fuzz_var_logger;
+        templateFuzzVarLogger template_fuzz_var_logger;
+        templateVarLogger template_var_logger;
         mrNewVariableFuzzerLogger mr_fuzzer_logger;
 
     public:
@@ -211,13 +223,7 @@ class parseFuzzConstructs : public clang::ASTConsumer
         parseFuzzConstructs(clang::Rewriter& _rw) : rw(_rw),
             newVarFuzzerMtch(newVariableFuzzerMatcher(_rw)) {};
 
-        void
-        HandleTranslationUnit(clang::ASTContext& ctx) override
-        {
-            newVarFuzzerMtch.matchAST(ctx);
-            fuzzExpander::expandLoggedNewVars(rw, ctx);
-            fuzzExpander::expandLoggedNewMRVars(rw, ctx);
-        }
+        void HandleTranslationUnit(clang::ASTContext&) override;
 };
 
 class templateLocLogger : public clang::ast_matchers::MatchFinder::MatchCallback
@@ -270,11 +276,8 @@ class templateDuplicatorAction : public clang::ASTFrontendAction
         void EndSourceFileAction() override;
 
         std::unique_ptr<clang::ASTConsumer>
-        CreateASTConsumer(clang::CompilerInstance& ci, llvm::StringRef file) override
-        {
-            rw.setSourceMgr(ci.getSourceManager(), ci.getLangOpts());
-            return std::make_unique<templateDuplicator>(rw);
-        }
+        CreateASTConsumer(clang::CompilerInstance& ci, llvm::StringRef file)
+            override;
 };
 
 /** @brief Action wrapper for parseFuzzConstructs
@@ -294,11 +297,8 @@ class parseFuzzConstructsAction : public clang::ASTFrontendAction
         void EndSourceFileAction() override;
 
         std::unique_ptr<clang::ASTConsumer>
-        CreateASTConsumer(clang::CompilerInstance& ci, llvm::StringRef file) override
-        {
-            rw.setSourceMgr(ci.getSourceManager(), ci.getLangOpts());
-            return std::make_unique<parseFuzzConstructs>(rw);
-        }
+        CreateASTConsumer(clang::CompilerInstance& ci, llvm::StringRef file)
+            override;
 };
 
 #endif // _PARSE_FUZZ_SPEC_HPP
