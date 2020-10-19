@@ -36,6 +36,8 @@ parser.add_argument("--test-time", type=int, default=-1,
     help = "Time in seconds to perform testing. Overrides `test-count`.")
 parser.add_argument("--debug", action='store_true',
     help = "If set, emit runtime debug information")
+parser.add_argument("--stop-on-fail", action='store_true',
+    help = "If set, testing stops on first execution failure.")
 parser.add_argument("--append-id", action='store_true',
     help = "If set, appends a random numeric hash to the output folder")
 parser.add_argument("--seed", type=int, default=random.randint(0, sys.maxsize),
@@ -238,6 +240,9 @@ if __name__ == '__main__':
                 stats["timeout_tests"] += 1
             else:
                 stats["fail_tests"] += 1
+            if args.stop_on_fail:
+                log_console.info("Found execution failure and `stop_on_fail` set; exitting...");
+                break
             continue
 
     experiment_time = time.perf_counter() - experiment_start_time
