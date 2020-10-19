@@ -3,6 +3,9 @@ build
 libs
 input
 output
+env
+scripts/yaml
 
 # Files
 compile_commands.json
+make_*

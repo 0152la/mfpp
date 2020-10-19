@@ -1,14 +1,14 @@
 #!/bin/bash
 
-set -x 
+set -x
 
 if [[ "$1" = "--help" ]]
 then
     echo -e "Compilation script for Metalib generated test cases\n\n"
     echo -e "Usage: compile.sh <test_name> <cmake_script_location>"
     echo -e "\t<test_name> -- path to input generated test file"
-    echo -e "\t<cmake_script_location> -- path to CMake script used to compile a "
-    echo -e "\t\tprogram for the given library"
+    echo -e "\t<cmake_script_location> -- path to folder containing CMake script"
+    echo -e "\t\t used to compile a program for the given library"
 fi
 
 if [[ "$#" -ne 2 ]]
