@@ -198,9 +198,9 @@ parseFuzzerCallsAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 void
 parseFuzzerCallsAction::EndSourceFileAction()
 {
-    assert(!output_file.empty());
+    assert(!globals::output_file.empty());
     std::error_code ec;
-    llvm::raw_fd_ostream of_rfo(output_file, ec);
+    llvm::raw_fd_ostream of_rfo(globals::output_file, ec);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID())
         .write(of_rfo);
     of_rfo.close();

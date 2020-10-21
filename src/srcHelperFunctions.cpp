@@ -15,7 +15,7 @@ CHECK_CONDITION(bool condition, std::string msg)
 void
 EMIT_PASS_START_DEBUG(clang::CompilerInstance& ci, std::string pass_name)
 {
-    std::chrono::duration<double> from_start = std::chrono::system_clock::now() - START_TIME;
+    std::chrono::duration<double> from_start = std::chrono::system_clock::now() - globals::START_TIME;
     //std::string from_start_str(from_start.count());
     //from_start_str = from_start_str.substr(0, from_start_str.length());
     //from_start_str = "\033[1m\033[31m" + from_start_str + "\033[m";
@@ -29,7 +29,13 @@ EMIT_PASS_START_DEBUG(clang::CompilerInstance& ci, std::string pass_name)
 std::string
 getMetaInputVarName(size_t id)
 {
-    return meta_input_var_prefix + suffix_delim + std::to_string(id);
+    return globals::meta_input_var_prefix + globals::suffix_delim + std::to_string(id);
+}
+
+std::string
+getMetaVarName(size_t id)
+{
+    return globals::meta_var_name + globals::suffix_delim + std::to_string(id);
 }
 
 } // namespace fuzz_helpers

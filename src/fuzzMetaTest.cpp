@@ -56,27 +56,24 @@ static llvm::cl::list<std::string> LibInputList("lib-list",
     llvm::cl::desc("Comma-separated list of files to expose library functionality."),
     llvm::cl::CommaSeparated, llvm::cl::cat(tmpOC));
 
-std::chrono::time_point<std::chrono::system_clock> START_TIME;
+std::chrono::time_point<std::chrono::system_clock> globals::START_TIME;
 
-llvm::SmallString<256> rewritten_input_file;
-std::string rewrite_data;
-std::string output_file = "";
-std::string set_meta_tests_path = "";
+llvm::SmallString<256> globals::rewritten_input_file;
+std::string globals::rewrite_data;
+std::string globals::output_file = "";
+std::string globals::set_meta_tests_path = "";
 
-std::string meta_var_name = "r";
-size_t meta_input_fuzz_count = 3;
-size_t meta_test_rel_count = 7;
-size_t meta_test_count = 20;
-size_t meta_test_depth = 10;
-std::string meta_input_var_prefix = "output_var";
-std::string meta_input_var_get_prefix = "output_var_get";
+size_t globals::meta_input_fuzz_count = 3;
+size_t globals::meta_test_rel_count = 7;
+size_t globals::meta_test_count = 20;
+size_t globals::meta_test_depth = 10;
 
 void
 EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
 {
     std::error_code ec;
     int fd;
-    llvm::sys::fs::createTemporaryFile("", ".cpp", fd, rewritten_input_file);
+    llvm::sys::fs::createTemporaryFile("", ".cpp", fd, globals::rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     pass_rw.getEditBuffer(pass_rw.getSourceMgr().getMainFileID()).write(rif_rfo);
 }
@@ -84,7 +81,7 @@ EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
 int
 main(int argc, char const **argv)
 {
-    START_TIME = std::chrono::system_clock::now();
+    globals::START_TIME = std::chrono::system_clock::now();
     clang::tooling::CommonOptionsParser op(argc, argv, tmpOC);
     fuzzer::clang::setSeed(FuzzerSeed);
     std::cout << "[fuzzMetaTest] Seed set " << FuzzerSeed << std::endl;
@@ -98,16 +95,16 @@ main(int argc, char const **argv)
     clang::tooling::ClangTool fuzzTool(op.getCompilations(),
         op.getSourcePathList());
 
-    set_meta_tests_path = SetMetaTestsInput;
+    globals::set_meta_tests_path = SetMetaTestsInput;
     //assert(!set_meta_tests_path.empty());
     CHECK_CONDITION(llvm::sys::fs::exists(SetMetaTestsInput),
         "Given input SetMetaTests file does not exist!");
-    output_file = TestOutput;
+    globals::output_file = TestOutput;
 
-    meta_input_fuzz_count = MetaInputCount;
-    meta_test_rel_count = MetaTestRels;
-    meta_test_count = MetaTestCount;
-    meta_test_depth = MetaTestDepth;
+    globals::meta_input_fuzz_count = MetaInputCount;
+    globals::meta_test_rel_count = MetaTestRels;
+    globals::meta_test_count = MetaTestCount;
+    globals::meta_test_depth = MetaTestDepth;
 
     if (libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {
@@ -140,7 +137,7 @@ main(int argc, char const **argv)
     {
         step_count += 1;
         clang::tooling::ClangTool processTool(op.getCompilations(),
-            std::vector<std::string>{rewritten_input_file.str()});
+            std::vector<std::string>{globals::rewritten_input_file.str()});
         if (processTool.run(fa.get()))
         {
             std::cout << "Error in processing step count " << step_count  << std::endl;
@@ -148,7 +145,7 @@ main(int argc, char const **argv)
         }
     }
 
-    std::chrono::duration<double> from_start = std::chrono::system_clock::now() - START_TIME;
+    std::chrono::duration<double> from_start = std::chrono::system_clock::now() - globals::START_TIME;
     std::cout << "[" << "\033[1m\033[31m" << from_start.count() << "\033[m" << "]";
     std::cout << " End fuzz test " << TestOutput << "." << std::endl;
 }

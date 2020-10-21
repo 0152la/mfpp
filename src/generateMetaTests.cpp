@@ -42,7 +42,7 @@ generateMetaTests(std::vector<std::string> input_var_names,
     //}
 
     // Generate meta family chain
-    for (size_t i = 0; i < meta_test_rel_count; ++i)
+    for (size_t i = 0; i < globals::meta_test_rel_count; ++i)
     {
         std::set<std::string>::const_iterator it = meta_families.cbegin();
         std::advance(it, fuzzer::clang::generateRand(0, meta_families.size() - 1));
@@ -52,7 +52,7 @@ generateMetaTests(std::vector<std::string> input_var_names,
     meta_tests << '\n';
 
     // Generate single metamorphic test
-    for (int i = 0; i < meta_test_count; ++i)
+    for (int i = 0; i < globals::meta_test_count; ++i)
     {
         std::string meta_test = generateSingleMetaTest(input_var_names,
             meta_input_var_type, meta_family_chain, rw, i);
@@ -71,7 +71,7 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
     size_t test_count)
 {
     std::stringstream mt_body;
-    std::string curr_mr_var_name = meta_var_name + std::to_string(test_count);
+    std::string curr_mr_var_name = fuzz_helpers::getMetaVarName(test_count);
     // TODO grab correct indent
     std::string indent = "\t";
     mrGenInfo mgi(curr_mr_var_name, input_var_names, test_count, rw);
@@ -102,7 +102,7 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
     for (mrInfo meta_check : meta_check_decls)
     {
         mgi.setMR(&meta_check);
-        mgi.input_var_names = { meta_var_name + "0" , curr_mr_var_name };
+        mgi.input_var_names = { fuzz_helpers::getMetaVarName(0) , curr_mr_var_name };
         mgi.curr_mr_var_name = "";
         std::pair<std::string, std::string> rw_meta_rel =
             concretizeMetaRelation(mgi);
@@ -237,7 +237,7 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
         }
 
         mrInfo recursive_mr_func = retrieveRandMrDecl(recursive_mr_type,
-            recursive_mr_family, mgi.depth > meta_test_depth);
+            recursive_mr_family, mgi.depth > globals::meta_test_depth);
         mgi.recursive_idx += 1;
 
         std::vector<std::string> mr_call_params;
@@ -619,7 +619,7 @@ metaGenerator::expandMetaTests()
     assert(meta_input_var_type != nullptr);
     std::vector<std::string> input_var_names;
     // TODO 
-    for (size_t i = 0; i < meta_input_fuzz_count; ++i)
+    for (size_t i = 0; i < globals::meta_input_fuzz_count; ++i)
     {
         input_var_names.push_back(fuzz_helpers::getMetaInputVarName(i));
     }
@@ -649,7 +649,7 @@ metaGeneratorAction::EndSourceFileAction()
     std::error_code ec;
     int fd;
     llvm::sys::fs::createTemporaryFile("mtFuzz", "cpp", fd,
-        rewritten_input_file);
+        globals::rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
 }

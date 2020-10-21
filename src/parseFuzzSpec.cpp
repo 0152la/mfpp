@@ -72,7 +72,7 @@ bool
 templateVariableDuplicatorVisitor::VisitVarDecl(clang::VarDecl* vd)
 {
     rw.InsertText(vd->getLocation().getLocWithOffset(vd->getName().size()),
-        suffix_delim + std::to_string(id));
+        globals::suffix_delim + std::to_string(id));
     return true;
 }
 
@@ -81,7 +81,7 @@ templateVariableDuplicatorVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
 {
     if (llvm::dyn_cast<clang::VarDecl>(dre->getDecl()))
     {
-        rw.InsertText(dre->getEndLoc(), suffix_delim + std::to_string(id));
+        rw.InsertText(dre->getEndLoc(), globals::suffix_delim + std::to_string(id));
     }
     return true;
 }
@@ -184,7 +184,7 @@ parseFuzzConstructsVisitor::VisitDeclRefExpr(clang::DeclRefExpr* dre)
         clang::NamespaceDecl* nd = dre->getQualifier()->getAsNamespace();
         if (nd && !nd->getNameAsString().compare("fuzz"))
         {
-            if (!dre->getDecl()->getNameAsString().compare(meta_input_var_prefix))
+            if (!dre->getDecl()->getNameAsString().compare(globals::meta_input_var_prefix))
             {
                 clang::ASTContext::DynTypedNodeList dre_parents =
                     this->ctx.getParents(*dre);
@@ -245,7 +245,7 @@ fuzzExpander::getDuplicateDeclVars(
         {
             if (fuzzVarDecl s_var = vars_pair.second; s_var.vd != nullptr)
             {
-                if (size_t suf_loc = s_var.getName().rfind(suffix_delim);
+                if (size_t suf_loc = s_var.getName().rfind(globals::suffix_delim);
                         filter_template && s_var.in_template &&
                         suf_loc != std::string::npos &&
                         std::stoi(s_var.getName().substr(suf_loc + 1)) != output_var_count)
@@ -253,7 +253,7 @@ fuzzExpander::getDuplicateDeclVars(
                     return;
                 }
                 //std::string s_var_name = s_var.in_template
-                    //? s_var.getName() + suffix_delim + std::to_string(output_var_count)
+                    //? s_var.getName() + globals::suffix_delim + std::to_string(output_var_count)
                     //: s_var.getName();
                 duplicate_vars.emplace(s_var.getName(), s_var.getTypeName());
             }
@@ -293,7 +293,7 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
             // the search
             tfv = spec_vars.begin();
             in_template = false;
-            if (curr_input_count  == meta_input_fuzz_count)
+            if (curr_input_count  == globals::meta_input_fuzz_count)
             {
                 curr_input_count = -1;
             }
@@ -304,7 +304,6 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
         else
         {
             assert(fnc.base_stmt);
-            fnc.base_stmt->dump();
             while(fnc.base_stmt != (*tfv).first)
             {
                 tfv++;
@@ -655,14 +654,14 @@ templateDuplicator::templateDuplicator(clang::Rewriter& _rw) :
             clang::ast_matchers::callee(
             clang::ast_matchers::functionDecl(
             clang::ast_matchers::hasName(
-                meta_input_var_get_prefix))),
+                globals::meta_input_var_get_prefix))),
 
             clang::ast_matchers::hasArgument(
                 0, clang::ast_matchers::integerLiteral()
                 .bind("mivID"))))
                 .bind("mivGetCE"), &logger);
 
-    for (size_t i = 0; i < meta_input_fuzz_count; ++i)
+    for (size_t i = 0; i < globals::meta_input_fuzz_count; ++i)
     {
         std::vector<std::string> input_template_strs;
         input_template_strs.push_back(
@@ -721,13 +720,13 @@ templateDuplicator::HandleTranslationUnit(clang::ASTContext& ctx)
             clang::Lexer::getIndentationForLine(
                 stmt_redecl.base_stmt->getBeginLoc(),
                 rw.getSourceMgr());
-        for (size_t i = 0; i < meta_input_fuzz_count; ++i)
+        for (size_t i = 0; i < globals::meta_input_fuzz_count; ++i)
         {
             clang::Rewriter rw_tmp(rw.getSourceMgr(), rw.getLangOpts());
             for (clang::SourceLocation sl :
                     stmt_redecl.decl_var_additions)
             {
-                rw_tmp.InsertText(sl, suffix_delim + std::to_string(i));
+                rw_tmp.InsertText(sl, globals::suffix_delim + std::to_string(i));
             }
             if (stmt_redecl.output_var_decl.isValid())
             {
@@ -788,13 +787,10 @@ templateDuplicatorAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 void
 templateDuplicatorAction::EndSourceFileAction()
 {
-    //llvm::raw_string_ostream rso(rewrite_data);
-    //rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rso);
-
     std::error_code ec;
     int fd;
     llvm::sys::fs::createTemporaryFile("mtFuzz", ".cpp", fd,
-        rewritten_input_file);
+        globals::rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
     //
@@ -828,13 +824,10 @@ parseFuzzConstructsAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 void
 parseFuzzConstructsAction::EndSourceFileAction()
 {
-    //llvm::raw_string_ostream rso(rewrite_data);
-    //rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rso);
-
     std::error_code ec;
     int fd;
     llvm::sys::fs::createTemporaryFile("mtFuzz", "cpp", fd,
-        rewritten_input_file);
+        globals::rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
     //llvm::sys::fs::remove(rewritten_input_file);

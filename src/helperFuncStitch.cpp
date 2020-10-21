@@ -279,7 +279,7 @@ fuzzHelperFuncStitchAction::EndSourceFileAction()
     std::error_code ec;
     int fd;
     llvm::sys::fs::createTemporaryFile("mtFuzz", ".cpp", fd,
-        rewritten_input_file);
+        globals::rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
     //llvm::sys::fs::remove(rewritten_input_file);
