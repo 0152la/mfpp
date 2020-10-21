@@ -22,7 +22,6 @@
 #include "generateMetaTests.hpp"
 
 bool inFuzzTemplate(const clang::Decl*, clang::SourceManager& SM);
-std::string getMetaInputVarName(size_t);
 
 struct stmtRedeclTemplateVars
 {
@@ -154,7 +153,7 @@ class fuzzExpander
         getDuplicateDeclVars(
             //std::set<fuzzVarDecl, decltype(&fuzzVarDecl::compare)>,
             std::vector<std::pair<const clang::Stmt*, fuzzVarDecl>>,
-            size_t);
+            size_t, bool);
 
         static void expandLoggedNewVars(clang::Rewriter&, clang::ASTContext&);
         static void expandLoggedNewMRVars(clang::Rewriter&, clang::ASTContext&);

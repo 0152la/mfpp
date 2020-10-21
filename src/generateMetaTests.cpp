@@ -618,9 +618,10 @@ metaGenerator::expandMetaTests()
 {
     assert(meta_input_var_type != nullptr);
     std::vector<std::string> input_var_names;
+    // TODO 
     for (size_t i = 0; i < meta_input_fuzz_count; ++i)
     {
-        input_var_names.push_back(meta_input_var_prefix + std::to_string(i));
+        input_var_names.push_back(fuzz_helpers::getMetaInputVarName(i));
     }
     for (const clang::CallExpr* meta_call : meta_test_calls)
     {

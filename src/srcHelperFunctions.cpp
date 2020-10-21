@@ -26,6 +26,12 @@ EMIT_PASS_START_DEBUG(clang::CompilerInstance& ci, std::string pass_name)
         << std::endl;
 }
 
+std::string
+getMetaInputVarName(size_t id)
+{
+    return meta_input_var_prefix + suffix_delim + std::to_string(id);
+}
+
 } // namespace fuzz_helpers
 
 //void

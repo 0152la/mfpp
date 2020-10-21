@@ -13,6 +13,8 @@
 namespace fuzz_helpers {
 
 void EMIT_PASS_START_DEBUG(clang::CompilerInstance&, std::string);
+void CHECK_CONDITION(bool, std::string);
+std::string getMetaInputVarName(size_t);
 
 } // namespace fuzz_helpers
 

@@ -27,5 +27,6 @@ extern std::string output_file;
 
 // srcHelperFunctions.cpp
 extern std::chrono::time_point<std::chrono::system_clock> START_TIME;
+const char suffix_delim = '_';
 
 #endif // _GLOBALS_HPP
