@@ -38,6 +38,9 @@ parser.add_argument("--debug", action='store_true',
     help = "If set, emit runtime debug information")
 parser.add_argument("--stop-on-fail", action='store_true',
     help = "If set, testing stops on first execution failure.")
+parser.add_argument("--log-all-tests", action='store_true',
+    help = "If set, saves all generated test files, instead of only the failing"
+    " ones.")
 parser.add_argument("--append-id", action='store_true',
     help = "If set, appends a random numeric hash to the output folder")
 parser.add_argument("--seed", type=int, default=random.randint(0, sys.maxsize),
@@ -58,7 +61,7 @@ TIMEOUT_STR = "TIMEOUT"
 # Helper functions
 ###############################################################################
 
-def exec_cmd(name, cmd, test_id, timeout=None):
+def exec_cmd(name, cmd, test_id, timeout=None, log_test=False):
     if not timeout:
         log_console.debug(f"Running {name} command:\n\t*** {cmd}")
     else:
@@ -85,14 +88,20 @@ def exec_cmd(name, cmd, test_id, timeout=None):
             log_runtime.info(f"FAIL {name} command")
         log_runtime.debug(f"STDOUT:\n{out}")
         log_runtime.debug(f"STDERR:\n{err}")
+    copy_name = ""
     if proc_timeout:
         log_console.warning(f"Timeout {name} command for test count {test_id}!")
     elif cmd_proc.returncode != 0:
         log_console.warning(f"Failed {name} command for test count {test_id}!")
+        test_save_name = "{test_id:07d}_{name}_fail"
+    elif log_test:
+        test_save_name = "{test_id:07d}_{name}"
+    if test_save_name:
         try:
-            shutil.copyfile(full_output_file_name, f"{save_test_folder}/{name}_fail_{test_id:07d}")
+            shutil.copyfile(full_output_file_name, f"{save_test_folder}/{test_save_name}")
         except FileNotFoundError:
             pass
+
     stats = {}
     stats["exec_time"] = exec_time
     stats["return_code"] = cmd_proc.returncode
@@ -230,7 +239,7 @@ if __name__ == '__main__':
 
         run_output_file_name = os.path.splitext(f"{output_folder}/{output_file_name}")[0]
         run_cmd = f"{run_output_file_name}"
-        run_result = exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout)
+        run_result = exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout, args.log_all_tests)
         stats["test_runtimes"].append(run_result["exec_time"])
         if not run_result['return_code'] in stats['run_return_codes']:
             stats['run_return_codes'][run_result['return_code']] = 0

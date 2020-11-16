@@ -22,7 +22,7 @@ cmake_loc=$2
 build_dir=`mktemp -d`
 echo "Compiling $1 with script at $2"
 cd $build_dir
-cmake -G Ninja -DTEST_FILE=$test_name $2 && ninja
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Debug -DTEST_FILE=$test_name $2 && ninja
 mv `basename ${test_name%.*}` `dirname $test_name`
 cd - && rm -rf $build_dir
 
