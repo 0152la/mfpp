@@ -93,9 +93,9 @@ def exec_cmd(name, cmd, test_id, timeout=None, log_test=False):
         log_console.warning(f"Timeout {name} command for test count {test_id}!")
     elif cmd_proc.returncode != 0:
         log_console.warning(f"Failed {name} command for test count {test_id}!")
-        test_save_name = "{test_id:07d}_{name}_fail"
+        test_save_name = f"{test_id:07d}_{name}_fail"
     elif log_test:
-        test_save_name = "{test_id:07d}_{name}"
+        test_save_name = f"{test_id:07d}_{name}"
     if test_save_name:
         try:
             shutil.copyfile(full_output_file_name, f"{save_test_folder}/{test_save_name}")
