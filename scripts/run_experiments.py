@@ -91,6 +91,8 @@ def exec_cmd(name, cmd, test_id, timeout=None, log_test=False):
     test_save_name = ""
     if proc_timeout:
         log_console.warning(f"Timeout {name} command for test count {test_id}!")
+        if log_test:
+            test_save_name = f"{test_id:07d}_{name}_timeout"
     elif cmd_proc.returncode != 0:
         log_console.warning(f"Failed {name} command for test count {test_id}!")
         test_save_name = f"{test_id:07d}_{name}_fail"
