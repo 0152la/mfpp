@@ -88,7 +88,7 @@ def exec_cmd(name, cmd, test_id, timeout=None, log_test=False):
             log_runtime.info(f"FAIL {name} command")
         log_runtime.debug(f"STDOUT:\n{out}")
         log_runtime.debug(f"STDERR:\n{err}")
-    copy_name = ""
+    test_save_name = ""
     if proc_timeout:
         log_console.warning(f"Timeout {name} command for test count {test_id}!")
     elif cmd_proc.returncode != 0:
@@ -239,7 +239,7 @@ if __name__ == '__main__':
 
         run_output_file_name = os.path.splitext(f"{output_folder}/{output_file_name}")[0]
         run_cmd = f"{run_output_file_name}"
-        run_result = exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout, args.log_all_tests)
+        run_result = exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout, log_test=args.log_all_tests)
         stats["test_runtimes"].append(run_result["exec_time"])
         if not run_result['return_code'] in stats['run_return_codes']:
             stats['run_return_codes'][run_result['return_code']] = 0
