@@ -90,6 +90,11 @@ parseConcreteVar(const clang::Stmt* s)
     {
         return std::to_string(il->getValue().getSExtValue());
     }
+    else if (const clang::FloatingLiteral* fl =
+            llvm::dyn_cast<clang::FloatingLiteral>(s))
+    {
+        return std::to_string(fl->getValue().convertToFloat());
+    }
     else if (const clang::StringLiteral* sl =
             llvm::dyn_cast<clang::StringLiteral>(s))
     {
