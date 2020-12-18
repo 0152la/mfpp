@@ -28,8 +28,8 @@ fuzzerCallsReplacer::getIntFromClangExpr(
     int int_val;
     if (const clang::BinaryOperator* bo = llvm::dyn_cast<const clang::BinaryOperator>(lit_expr))
     {
-        llvm::APSInt int_val = bo->EvaluateKnownConstInt(this->ctx);
-        int_val = int_val.getExtValue();
+        llvm::APSInt int_const = bo->EvaluateKnownConstInt(this->ctx);
+        int_val = int_const.getExtValue();
     }
     else if (const clang::IntegerLiteral* int_lit =
             llvm::dyn_cast<const clang::IntegerLiteral>(lit_expr))
