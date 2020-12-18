@@ -343,6 +343,7 @@ fuzzExpander::expandLoggedNewVars(clang::Rewriter& rw, clang::ASTContext& ctx)
                 break;
             }
         }
+
         assert(fuzz_ref->getNumTemplateArgs() == 1);
         std::pair<std::string, std::string> fuzzer_output =
             fuzzer::clang::generateObjectInstructions(

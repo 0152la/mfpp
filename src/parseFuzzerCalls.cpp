@@ -6,22 +6,41 @@ int
 fuzzerCallsReplacer::getIntFromClangExpr(
     clang::CallExpr::const_arg_iterator ce_it) const
 {
-    const clang::IntegerLiteral* int_lit;
+    const clang::Expr* lit_expr = nullptr;
     const clang::UnaryOperator* uo =
             llvm::dyn_cast<const clang::UnaryOperator>(*ce_it);
     if (uo)
     {
         assert(uo->getOpcode() == clang::UnaryOperatorKind::UO_Minus);
-        int_lit =
-            llvm::dyn_cast<clang::IntegerLiteral>(uo->getSubExpr());
+        lit_expr = uo->getSubExpr();
+    }
+    else if (const clang::ImplicitCastExpr* ice =
+            llvm::dyn_cast<const clang::ImplicitCastExpr>(*ce_it))
+    {
+        lit_expr = ice->getSubExpr();
     }
     else
     {
-        int_lit = llvm::dyn_cast<clang::IntegerLiteral>(*ce_it);
+        lit_expr = *ce_it;
     }
-    assert(int_lit);
 
-    int int_val = int_lit->getValue().getSExtValue();
+
+    int int_val;
+    if (const clang::BinaryOperator* bo = llvm::dyn_cast<const clang::BinaryOperator>(lit_expr))
+    {
+        llvm::APSInt int_val = bo->EvaluateKnownConstInt(this->ctx);
+        int_val = int_val.getExtValue();
+    }
+    else if (const clang::IntegerLiteral* int_lit =
+            llvm::dyn_cast<const clang::IntegerLiteral>(lit_expr))
+    {
+        int_val = int_lit->getValue().getSExtValue();
+    }
+    else
+    {
+        assert(false);
+    }
+
     if (uo)
     {
         int_val = -int_val;
@@ -143,6 +162,25 @@ fuzzerCallsReplacer::makeReplace(
                 }
 
                 replace_val = fuzzer::clang::generateRandStr(min, max);
+            }
+            if (!rand_type.compare("unsigned int"))
+            {
+                int min = 0, max = std::numeric_limits<int>::max();
+                clang::CallExpr::const_arg_iterator it = ce->arg_begin();
+                if (it != ce->arg_end())
+                {
+                    min = fuzzerCallsReplacer::getIntFromClangExpr(it);
+                    std::advance(it, 1);
+                    if (it != ce->arg_end())
+                    {
+                        max = fuzzerCallsReplacer::getIntFromClangExpr(it);
+                        //max = llvm::dyn_cast<clang::IntegerLiteral>(*it)
+                            //->getValue().getSExtValue();
+                    }
+                    assert(std::next(it) == ce->arg_end());
+                }
+                assert(min >= 0 && max >= 0);
+                replace_val = std::to_string(fuzzer::clang::generateRand(min, max));
             }
             else
             {
