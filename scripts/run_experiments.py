@@ -286,7 +286,7 @@ if __name__ == '__main__':
         stats_writer.write(f"\nRaw data:\n")
         stats_writer.write(yaml.dump(stats))
 
-    symlink_name = f"last_{os.path.abspatch(config['output_folder'])}"
+    symlink_name = f"{os.path.abspath(config['output_folder'])}_last"
     if os.path.exists(symlink_name):
         os.remove(symlink_name)
     os.symlink(output_folder, symlink_name)
