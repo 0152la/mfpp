@@ -285,3 +285,5 @@ if __name__ == '__main__':
         emit_times_stats(stats['test_runtimes'], "execution", stats_writer)
         stats_writer.write(f"\nRaw data:\n")
         stats_writer.write(yaml.dump(stats))
+
+    os.symlink(output_folder, os.path.abspatch(config['output_folder']) + "_last")
