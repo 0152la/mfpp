@@ -20,7 +20,7 @@ struct mrGenInfo
     mrInfo* mr_decl;
     std::string curr_mr_var_name;
     std::vector<std::string> input_var_names;
-    size_t depth = 0, test_idx, recursive_idx = 0;
+    size_t depth = 0, test_idx, recursive_idx = 0, family_idx = 0;
     bool first_decl = true;
     const clang::Rewriter& rw;
 

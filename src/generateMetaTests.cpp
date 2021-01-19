@@ -2,6 +2,7 @@
 
 static std::vector<const clang::VarDecl*> main_var_decls;
 static std::vector<const clang::CallExpr*> meta_test_calls;
+static std::map<size_t, std::vector<std::string>> mr_input_vars;
 static const clang::FunctionDecl* test_main_fd;
 std::string recursive_func_call_name = "placeholder";
 std::map<std::pair<REL_TYPE, std::string>, std::vector<mrInfo>> meta_rel_decls;
@@ -47,6 +48,7 @@ generateMetaTests(std::vector<std::string> input_var_names,
         std::set<std::string>::const_iterator it = meta_families.cbegin();
         std::advance(it, fuzzer::clang::generateRand(0, meta_families.size() - 1));
         meta_family_chain.push_back(*it);
+        mr_input_vars.emplace(i, std::vector<std::string>());
     }
     std::stringstream meta_tests;
     meta_tests << '\n';
@@ -85,12 +87,13 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
 
         std::pair<std::string, std::string> rw_meta_rel =
             concretizeMetaRelation(mgi);
-        if (mgi.first_decl)
-        {
-            mgi.first_decl = false;
-            mgi.input_var_names.at(0) = curr_mr_var_name;
-        }
+        //if (mgi.first_decl)
+        //{
+            //mgi.first_decl = false;
+            //mgi.input_var_names.at(0) = curr_mr_var_name;
+        //}
         mgi.recursive_idx += 1;
+        mgi.family_idx += 1;
 
         mt_body << rw_meta_rel.first;
         rw.InsertText(test_main_fd->getBeginLoc(), rw_meta_rel.second);
@@ -102,8 +105,8 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
     for (mrInfo meta_check : meta_check_decls)
     {
         mgi.setMR(&meta_check);
-        mgi.input_var_names = { fuzz_helpers::getMetaVarName(0) , curr_mr_var_name };
-        mgi.curr_mr_var_name = "";
+        mgi.family_idx = -1;
+        mgi.input_var_names = { fuzz_helpers::getMetaVarName(0) };
         std::pair<std::string, std::string> rw_meta_rel =
             concretizeMetaRelation(mgi);
         mt_body << rw_meta_rel.first;
@@ -118,16 +121,20 @@ concretizeMetaRelation(mrGenInfo& mgi)
     clang::Rewriter tmp_rw(mgi.rw.getSourceMgr(), mgi.rw.getLangOpts());
     std::stringstream test_ss, funcs_ss;
 
-    if (!mgi.curr_mr_var_name.empty())
+    if (mgi.mr_decl->mr_type != CHECK)
     {
         if (mgi.first_decl)
         {
             test_ss << meta_input_var_type_name << ' ';
+            mgi.first_decl = false;
         }
         test_ss << mgi.curr_mr_var_name << " = ";
     }
 
-    test_ss << makeMRFuncCall(mgi) << ";" << std::endl;
+    std::vector params = mgi.family_idx != -1
+        ?  mr_input_vars.at(mgi.family_idx)
+        : std::vector<std::string>();
+    test_ss << makeMRFuncCall(mgi, nullptr, params) << ";" << std::endl;
     makeRecursiveFunctionCalls(mgi, funcs_ss);
 
     return std::make_pair(test_ss.str(), funcs_ss.str());
@@ -142,51 +149,70 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
         mgi.mr_decl->base_func->getNameAsString() +
         std::to_string(mgi.test_idx) + "_" + std::to_string(mgi.recursive_idx);
     mr_func_call << new_func_call_name << "(";
-    size_t param_idx = 0, implicit_param_counter = 0;
+    size_t param_idx = 0;
+    bool first_input_var = true;
     for (const clang::ParmVarDecl* pvd : mgi.mr_decl->base_func->parameters())
     {
+        std::string param_name;
         if (recursive)
         {
             assert(calling_mr);
             //mr_func_call << pvd->getNameAsString() << std::endl;
             if (param_idx < base_params.size())
             {
-                mr_func_call << base_params.at(param_idx);
+                param_name = base_params.at(param_idx);
             }
             else
             {
-                mr_func_call << retrieveMRDeclVar(calling_mr, pvd->getType().getTypePtr());
+                param_name = retrieveMRDeclVar(calling_mr, pvd->getType().getTypePtr());
                 //mr_func_call << pvd->getNameAsString();
             }
+        }
+        else if (!base_params.empty())
+        {
+            assert(param_idx < base_params.size());
+            param_name = base_params.at(param_idx);
         }
         else
         {
             assert(!calling_mr);
+            assert(base_params.empty());
             const clang::QualType pvt =
                 pvd->getType()->isReferenceType()
                 ? pvd->getType()->getPointeeType()
                 : pvd->getType();
             if (pvt.getTypePtr() == meta_input_var_type)
             {
-                mr_func_call << mgi.input_var_names.at(implicit_param_counter);
-                implicit_param_counter += 1;
+                if (first_input_var && mgi.family_idx != 0)
+                {
+                    param_name = mgi.curr_mr_var_name;
+                    first_input_var = false;
+                }
+                else
+                {
+                    param_name = fuzzer::clang::getRandElem(mgi.input_var_names);
+                }
             }
             else
             {
-                bool found = false;
+                std::vector<std::string> candidate_vars;
                 //pvd->dump();
                 for (const clang::VarDecl* vd : main_var_decls)
                 {
                     if (pvt == vd->getType())
                     {
-                        mr_func_call << vd->getNameAsString();
-                        found = true;
-                        break;
+                        candidate_vars.push_back(vd->getNameAsString());
                     }
                 }
-                assert(found);
+                assert(!candidate_vars.empty());
+                param_name = fuzzer::clang::getRandElem(candidate_vars);
+            }
+            if (mgi.family_idx != -1)
+            {
+                mr_input_vars.at(mgi.family_idx).push_back(param_name);
             }
         }
+        mr_func_call << param_name;
         if (param_idx < mgi.mr_decl->base_func->parameters().size() - 1)
         {
             mr_func_call << ", ";
@@ -416,7 +442,7 @@ testMainLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
     assert(fd);
     if (test_main_fd)
     {
-        assert(test_main_fd == test_main_fd);
+        assert(fd == test_main_fd);
     }
     else
     {
@@ -484,11 +510,14 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
 {
     mr_matcher.addMatcher(
         clang::ast_matchers::varDecl(
-        clang::ast_matchers::hasAncestor(
-        clang::ast_matchers::functionDecl(
-        clang::ast_matchers::isMain())
-            .bind("mainDecl")))
-            .bind("mainVarDecl"), &main_logger);
+        clang::ast_matchers::allOf(
+            clang::ast_matchers::hasAncestor(
+            clang::ast_matchers::functionDecl(
+            clang::ast_matchers::isMain())
+                .bind("mainDecl")),
+            clang::ast_matchers::unless(
+            clang::ast_matchers::parmVarDecl())))
+        .bind("mainVarDecl"), &main_logger);
 
     mr_matcher.addMatcher(
         clang::ast_matchers::callExpr(
@@ -618,7 +647,7 @@ metaGenerator::expandMetaTests()
 {
     assert(meta_input_var_type != nullptr);
     std::vector<std::string> input_var_names;
-    // TODO 
+    // TODO
     for (size_t i = 0; i < globals::meta_input_fuzz_count; ++i)
     {
         input_var_names.push_back(fuzz_helpers::getMetaInputVarName(i));

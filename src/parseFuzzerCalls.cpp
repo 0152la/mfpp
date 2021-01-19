@@ -163,7 +163,7 @@ fuzzerCallsReplacer::makeReplace(
 
                 replace_val = fuzzer::clang::generateRandStr(min, max);
             }
-            if (!rand_type.compare("unsigned int"))
+            else if (!rand_type.compare("unsigned int"))
             {
                 int min = 0, max = std::numeric_limits<int>::max();
                 clang::CallExpr::const_arg_iterator it = ce->arg_begin();
