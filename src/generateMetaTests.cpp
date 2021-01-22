@@ -172,6 +172,7 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
         {
             assert(param_idx < base_params.size());
             param_name = base_params.at(param_idx);
+            param_name = ((param_name == "<>") ? mgi.curr_mr_var_name : param_name);
         }
         else
         {
@@ -209,7 +210,14 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
             }
             if (mgi.family_idx != -1)
             {
-                mr_input_vars.at(mgi.family_idx).push_back(param_name);
+                if (param_name == mgi.curr_mr_var_name)
+                {
+                    mr_input_vars.at(mgi.family_idx).push_back("<>");
+                }
+                else
+                {
+                    mr_input_vars.at(mgi.family_idx).push_back(param_name);
+                }
             }
         }
         mr_func_call << param_name;
