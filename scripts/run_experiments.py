@@ -168,6 +168,10 @@ if __name__ == '__main__':
         shutil.rmtree(output_folder)
     log_console.debug(f"Creating output folder {output_folder}.")
     os.makedirs(output_folder, exist_ok=True)
+    symlink_name = f"{os.path.abspath(config['output_folder'])}_last"
+    if os.path.exists(symlink_name):
+        os.remove(symlink_name)
+    os.symlink(output_folder, symlink_name)
 
     save_test_folder_name = "tests"
     save_test_folder = f"{output_folder}/{save_test_folder_name}"
@@ -285,8 +289,3 @@ if __name__ == '__main__':
         emit_times_stats(stats['test_runtimes'], "execution", stats_writer)
         stats_writer.write(f"\nRaw data:\n")
         stats_writer.write(yaml.dump(stats))
-
-    symlink_name = f"{os.path.abspath(config['output_folder'])}_last"
-    if os.path.exists(symlink_name):
-        os.remove(symlink_name)
-    os.symlink(output_folder, symlink_name)
