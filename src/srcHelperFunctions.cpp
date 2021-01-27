@@ -38,6 +38,27 @@ getMetaVarName(size_t id)
     return globals::meta_var_name + globals::suffix_delim + std::to_string(id);
 }
 
+std::string
+getBuiltinRandStr(const clang::BuiltinType* bt)
+{
+    if (bt->isInteger())
+    {
+        int min = -20, max = 20;
+        return std::to_string(fuzzer::clang::generateRand(min, max));
+    }
+    if (bt->isUnsignedInteger())
+    {
+        int min = 0, max = 20;
+        return std::to_string(fuzzer::clang::generateRand(min, max));
+    }
+    if (bt->isFloatingPoint())
+    {
+        float min = -20.0, max = 20.0;
+        return std::to_string(fuzzer::clang::generateRand(min, max));
+    }
+    assert(false);
+}
+
 } // namespace fuzz_helpers
 
 //void

@@ -178,10 +178,18 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
         {
             assert(!calling_mr);
             assert(base_params.empty());
-            const clang::QualType pvt =
+            clang::QualType pvt =
                 pvd->getType()->isReferenceType()
-                ? pvd->getType()->getPointeeType()
-                : pvd->getType();
+                    ? pvd->getType()->getPointeeType()
+                    : pvd->getType();
+
+            //const clang::QualType pvt =
+                //pvd->getType()->isReferenceType()
+                //? pvd->getType()->getPointeeType()
+                //: pvd->getType();
+            //desugarType(pvt);
+            //pvd->getType()->dump();
+            //dt->dump();
             if (pvt.getTypePtr() == meta_input_var_type)
             {
                 if (first_input_var && mgi.family_idx != 0)
@@ -194,12 +202,27 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
                     param_name = fuzzer::clang::getRandElem(mgi.input_var_names);
                 }
             }
+            else if (pvt->isBuiltinType())
+            {
+                // TODO generalise
+                if (const clang::TypedefType* tdt = llvm::dyn_cast<clang::TypedefType>(pvt))
+                {
+                    pvt = tdt->desugar();
+                }
+                //pvt = pvt.getDesugaredType();
+                pvt->dump();
+                //pvt.getLocalUnqualifiedType().dump();
+                //pvt.getUnqualifiedType().dump();
+                param_name = fuzz_helpers::getBuiltinRandStr(
+                    llvm::dyn_cast<clang::BuiltinType>(pvt));
+            }
             else
             {
                 std::vector<std::string> candidate_vars;
-                //pvd->dump();
                 for (const clang::VarDecl* vd : main_var_decls)
                 {
+                    //vd->getNameAsString();
+                    //vd->getType().dump();
                     if (pvt == vd->getType())
                     {
                         candidate_vars.push_back(vd->getNameAsString());
@@ -277,7 +300,8 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
         std::vector<std::string> mr_call_params;
         for (const clang::Expr* arg : ce->arguments())
         {
-            mr_call_params.push_back(mgi.rw.getRewrittenText(arg->getSourceRange()));
+            mr_call_params.push_back(mgi.rw.getRewrittenText(
+                arg->getSourceRange()));
         }
 
         mrInfo* curr_mr = mgi.mr_decl;
@@ -518,13 +542,14 @@ metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
 {
     mr_matcher.addMatcher(
         clang::ast_matchers::varDecl(
-        clang::ast_matchers::allOf(
-            clang::ast_matchers::hasAncestor(
-            clang::ast_matchers::functionDecl(
-            clang::ast_matchers::isMain())
-                .bind("mainDecl")),
-            clang::ast_matchers::unless(
-            clang::ast_matchers::parmVarDecl())))
+        clang::ast_matchers::hasParent(
+        clang::ast_matchers::declStmt(
+        clang::ast_matchers::hasParent(
+        clang::ast_matchers::compoundStmt(
+        clang::ast_matchers::hasParent(
+        clang::ast_matchers::functionDecl(
+        clang::ast_matchers::isMain())
+            .bind("mainDecl")))))))
         .bind("mainVarDecl"), &main_logger);
 
     mr_matcher.addMatcher(
