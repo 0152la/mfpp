@@ -23,37 +23,46 @@ import pdb
 ###############################################################################
 
 parser = argparse.ArgumentParser(
-    description = "Metalib batch experiment generator and runner")
+    description = "Metalib batch experiment generator and runner",
+    formatter_class = argparse.RawTextHelpFormatter)
 parser.add_argument("config", type=str,
     help = "Path to configuration yaml file.")
-parser.add_argument("--gen-timeout", type=int, default=30,
-    help = "Maximum time, in seconds, to allowe generation for a test case.")
-parser.add_argument("--run-timeout", type=int, default=120,
-    help = "Maximum time, in seconds, to allow execution of generated test cases.")
-parser.add_argument("--test-count", type=int, default=100,
-    help = "Number of tests to run; set `-1` for infinite tests.")
-parser.add_argument("--test-time", type=int, default=-1,
-    help = "Time in seconds to perform testing. Overrides `test-count`.")
-parser.add_argument("--debug", action='store_true',
-    help = "If set, emit runtime debug information")
-parser.add_argument("--stop-on-fail", action='store_true',
-    help = "If set, testing stops on first execution failure.")
-parser.add_argument("--log-all-tests", action='store_true',
-    help = "If set, saves all generated test files, instead of only the failing"
-    " ones.")
-parser.add_argument("--append-id", action='store_true',
-    help = "If set, appends a random numeric hash to the output folder")
+# MODE SETTINGS
+parser.add_argument("--mode", choices=["count", "time", "generate"], default="count",
+    help = """Select the mode of the tool.
+    count - generate and execute a number of tests [DEFAULT]
+    time - generate and execute for a set amount of time
+    generate - generate single test case""")
+parser.add_argument("--mode-val", type=int, default=100,
+    help = """Mode-dependent value selector. Set `-1` for infinity.
+    `count` mode - sets number of tests to generate
+    `time` mode - sets time to execute in seconds.""")
+# PARAMETERS
 parser.add_argument("--seed", type=int, default=random.randint(0, sys.maxsize),
     help = "Seed to initialize random generator in script.")
-parser.add_argument("--always-log-out", action='store_true',
-    help = "If set, always prints the output of STDOUT and STDERR for test"\
-            " generation phases.")
+parser.add_argument("--gen-timeout", type=int, default=30,
+    help = "Maximum time, in seconds, to allow generation for a test case.")
+parser.add_argument("--run-timeout", type=int, default=120,
+    help = "Maximum time, in seconds, to allow execution of generated test cases.")
+parser.add_argument("--stop-on-fail", action='store_true',
+    help = "If set, testing stops on first execution failure.")
+parser.add_argument("--append-id", action='store_true',
+    help = "If set, appends a random numeric hash to the output folder")
+# DEBUG OPTIONS
+parser.add_argument("--debug", action='store_true',
+    help = "If set, emit runtime debug information")
 parser.add_argument("--debug-to-file", action='store_true',
     help = "If set, emits debug output to log file.")
 parser.add_argument("--runtime-log", type=str, default="runtime.log",
     help = "Name of log for runtime information.")
 parser.add_argument("--stats-log", type=str, default="stats.log",
     help = "Name of log file to store statistics about test executions.")
+parser.add_argument("--log-all-tests", action='store_true',
+    help = "If set, saves all generated test files, instead of only the failing"
+    " ones.")
+parser.add_argument("--always-log-out", action='store_true',
+    help = "If set, always prints the output of STDOUT and STDERR for test"\
+            " generation phases.")
 
 TIMEOUT_STR = "TIMEOUT"
 
@@ -126,6 +135,18 @@ def emit_times_stats(times, t_type, writer):
         writer.write(f"Average {t_type} times: all t/o\n")
         writer.write(f"Median {t_type} times: all t/o\n")
 
+def make_abs_path(pth, log, check_exists = False):
+    if not os.path.isabs(pth):
+        log.debug(f"Expanding found relative path `{pth}`.")
+        a_pth = os.path.abspath(pth)
+        try:
+            assert (not check_exists or os.path.exists(pth))
+        except AssertionError:
+            print(f"Inexistent absolute path `{a_pth}` expanded from relative path `{pth}`.")
+        return a_pth
+    log.debug(f"Returning found absolute path `{pth}`.")
+    return pth
+
 ###############################################################################
 # Main function
 ###############################################################################
@@ -145,43 +166,40 @@ if __name__ == '__main__':
     log_console.setLevel(log_level)
     log_console.debug("Debug mode set")
 
+    log_console.debug(f"Setting mode {args.mode} with value {args.mode_val}")
     log_console.debug(f"Setting seed {args.seed}")
     random.seed(args.seed)
-
-    if args.test_time != -1:
-        log_console.debug(f"Found set test-time to {args.test_time} seconds.")
-        args.test_count = -1
 
     log_console.debug(f"Parsing YAML config file {args.config}")
     with open(args.config, 'r') as config_fd:
         config = yaml.load(config_fd, Loader=yaml.FullLoader)
 
+    config['working_dir'] = make_abs_path(config['working_dir'], log_console, True)
     log_console.debug(f"Setting cwd to {config['working_dir']}")
     os.chdir(config["working_dir"])
-    output_folder = os.path.abspath(config['output_folder'])
+    config['output_folder'] = make_abs_path(config['output_folder'], log_console)
     if args.append_id:
-        output_folder += f"_{random.getrandbits(20):07d}"
-    output_file_name = config['output_file_name']
-    full_output_file_name = f"{output_folder}/{output_file_name}"
-    if os.path.exists(output_folder):
-        log_console.debug(f"Removing existing output folder {output_folder}.")
-        shutil.rmtree(output_folder)
-    log_console.debug(f"Creating output folder {output_folder}.")
-    os.makedirs(output_folder, exist_ok=True)
-    symlink_name = f"{os.path.abspath(config['output_folder'])}_last"
+        config['output_folder'] += f"_{random.getrandbits(20):07d}"
+    full_output_file_name = f"{config['output_folder']}/{config['output_file_name']}"
+    if os.path.exists(config['output_folder']):
+        log_console.debug(f"Removing existing output folder {config['output_folder']}.")
+        shutil.rmtree(config['output_folder'])
+    log_console.debug(f"Creating output folder {config['output_folder']}.")
+    os.makedirs(config['output_folder'], exist_ok=True)
+    symlink_name = f"{config['output_folder']}_last"
     if os.path.exists(symlink_name):
         os.remove(symlink_name)
-    os.symlink(output_folder, symlink_name)
+    os.symlink(config['output_folder'], symlink_name)
 
     save_test_folder_name = "tests"
-    save_test_folder = f"{output_folder}/{save_test_folder_name}"
+    save_test_folder = f"{config['output_folder']}/{save_test_folder_name}"
     os.makedirs(save_test_folder, exist_ok=False)
 
     log_runtime_filename = args.runtime_log
     log_console.debug(f"Setting runtime log file `{log_runtime_filename}`")
     log_runtime = logging.getLogger('gentime')
     log_runtime.setLevel(log_level)
-    log_runtime_handler = logging.FileHandler(f"{output_folder}/{log_runtime_filename}", 'w', "utf-8")
+    log_runtime_handler = logging.FileHandler(f"{config['output_folder']}/{log_runtime_filename}", 'w', "utf-8")
     log_runtime.addHandler(log_runtime_handler)
     if args.debug_to_file:
         log_console.addHandler(log_runtime_handler)
@@ -201,29 +219,37 @@ if __name__ == '__main__':
     stats["test_runtimes"] = []
     stats["run_return_codes"] = {}
 
-
     test_count = 0
     terminate = False
     experiment_start_time = time.perf_counter()
-    while (args.test_time == -1 or time.perf_counter() - experiment_start_time < args.test_time) and (test_count < args.test_count or args.test_count == -1) and not terminate:
+    while not terminate:
+
+        if args.mode_val != -1:
+            if args.mode == "count" and args.mode_val <= test_count:
+                log_console.debug(f"Hit max number of given tests; stopping...")
+                break
+            elif args.mode == "time" and args.mode_val <= time.perf_counter() - experiment_start_time:
+                log_console.debug(f"Executed max number of given seconds; stopping...")
+                break
+            elif args.mode == "generate" and test_count != 0:
+                log_console.debug(f"Generated one test case; stopping...")
+                sys.exit(0)
+
         test_count += 1
         stats["total_tests"] += 1
         if not args.debug:
             log_console_handler.terminator = '\r'
         curr_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         curr_time = "\033[1m\033[31m" + curr_time + "\033[0m"
-        if (args.test_time != -1):
-            log_console.debug(f"[{curr_time}] Elapsed {time.perf_counter() - experiment_start_time} of {args.test_time} seconds.")
-        else:
-            log_console.debug(f"[{curr_time}] Start test count {test_count} of {args.test_count}")
+        log_console.debug(f"[{curr_time}] Test count {test_count} - Elapsed time {time.perf_counter() - experiment_start_time} - Mode {args.mode} - Mode Value {args.mode_val}")
 
-        gen_seed = random.randrange(sys.maxsize)
+        gen_seed = args.seed if args.mode == "generate" else random.randrange(sys.maxsize)
         log_console.debug(f"Generating test with seed {gen_seed}")
         log_runtime.info(f"===== Test count {test_count} with seed {gen_seed}")
 
-        gen_cmd = f"./build/mtFuzzer {os.path.abspath(config['template_file'])}"\
-              f" -o {output_folder}/{output_file_name}"\
-              f" --lib-list={','.join([os.path.abspath(x) for x in config['lib_list']])}"\
+        config['template_file'] = make_abs_path(config['template_file'], log_console, True)
+        gen_cmd = f"./build/mtFuzzer {config['template_file']}"\
+              f" -o {full_output_file_name}"\
               f" --seed {gen_seed}"\
               f" {param_string}"
         gen_result = exec_cmd("generate", gen_cmd, test_count, timeout=args.gen_timeout)
@@ -232,9 +258,14 @@ if __name__ == '__main__':
             stats["gen_fail"] += 1
             continue
 
-        compile_cmd = f"{os.path.abspath(config['compile_script'])} {output_folder}/{output_file_name} {config['cmake_script_dir']}"
+        if args.mode == "generate":
+            log_console.debug(f"Generated one test case; stopping...")
+            sys.exit(0)
+
+        config['cmake_script_dir'] = make_abs_path(config['cmake_script_dir'], log_console, True)
+        compile_cmd = f"{os.path.abspath(config['compile_script'])} {full_output_file_name} {config['cmake_script_dir']}"
         old_cwd = os.getcwd()
-        os.chdir(output_folder)
+        os.chdir(config['output_folder'])
         compile_result = exec_cmd("compile", compile_cmd, test_count)
         stats["test_compiletimes"].append(compile_result["exec_time"])
         if compile_result["return_code"] != 0:
@@ -243,7 +274,7 @@ if __name__ == '__main__':
             continue
         os.chdir(old_cwd)
 
-        run_output_file_name = os.path.splitext(f"{output_folder}/{output_file_name}")[0]
+        run_output_file_name = os.path.splitext(f"{full_output_file_name}")[0]
         run_cmd = f"{run_output_file_name}"
         run_result = exec_cmd("execute", run_cmd, test_count, timeout=args.run_timeout, log_test=args.log_all_tests)
         stats["test_runtimes"].append(run_result["exec_time"])
@@ -262,9 +293,9 @@ if __name__ == '__main__':
 
     experiment_time = time.perf_counter() - experiment_start_time
     log_console_handler.terminator = '\n'
-    log_console.info(f"Finished experiments {output_folder}.")
+    log_console.info(f"Finished experiments {config['output_folder']}.")
 
-    with open(f"{output_folder}/{args.stats_log}", 'w') as stats_writer:
+    with open(f"{config['output_folder']}/{args.stats_log}", 'w') as stats_writer:
         cwd_repo = git.Repo(".")
         stats_writer.write(f"Generator infrastructure version: {cwd_repo.head.commit.hexsha}\n")
         try:

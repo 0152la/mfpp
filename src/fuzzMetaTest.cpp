@@ -43,25 +43,18 @@ static llvm::cl::opt<size_t> MetaTestRels("test-size",
 static llvm::cl::opt<size_t> MetaTestDepth("test-depth",
     llvm::cl::desc("Number of maximum recursive calls in a metamorphic test to generate."),
     llvm::cl::init(10), llvm::cl::cat(tmpOC));
-static llvm::cl::opt<std::string> SetMetaTestsInput("set-meta-path",
-    llvm::cl::desc("Old-YAML format set meta tests spec."),
-    llvm::cl::cat(tmpOC));
 static llvm::cl::opt<std::string> TestOutput("output",
     llvm::cl::desc("Path where to emit output file."),
     llvm::cl::cat(tmpOC), llvm::cl::Required, llvm::cl::value_desc("filename"));
 static llvm::cl::alias TestOutputAlias("o",
     llvm::cl::desc("Path where to emit output file."),
     llvm::cl::aliasopt(TestOutput));
-static llvm::cl::list<std::string> LibInputList("lib-list",
-    llvm::cl::desc("Comma-separated list of files to expose library functionality."),
-    llvm::cl::CommaSeparated, llvm::cl::cat(tmpOC));
 
 std::chrono::time_point<std::chrono::system_clock> globals::START_TIME;
 
 llvm::SmallString<256> globals::rewritten_input_file;
 std::string globals::rewrite_data;
 std::string globals::output_file = "";
-std::string globals::set_meta_tests_path = "";
 
 size_t globals::meta_input_fuzz_count = 3;
 size_t globals::meta_test_rel_count = 7;
@@ -86,19 +79,11 @@ main(int argc, char const **argv)
     fuzzer::clang::setSeed(FuzzerSeed);
     std::cout << "[fuzzMetaTest] Seed set " << FuzzerSeed << std::endl;
 
-    clang::tooling::ClangTool libTool(op.getCompilations(),
-        LibInputList);
-    clang::tooling::ClangTool metaTool(op.getCompilations(),
-        SetMetaTestsInput);
     assert(op.getSourcePathList().size() == 1);
     std::string input_file = op.getSourcePathList().front();
     clang::tooling::ClangTool fuzzTool(op.getCompilations(),
         op.getSourcePathList());
 
-    globals::set_meta_tests_path = SetMetaTestsInput;
-    //assert(!set_meta_tests_path.empty());
-    CHECK_CONDITION(llvm::sys::fs::exists(SetMetaTestsInput),
-        "Given input SetMetaTests file does not exist!");
     globals::output_file = TestOutput;
 
     globals::meta_input_fuzz_count = MetaInputCount;
@@ -106,7 +91,7 @@ main(int argc, char const **argv)
     globals::meta_test_count = MetaTestCount;
     globals::meta_test_depth = MetaTestDepth;
 
-    if (libTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
+    if (fuzzTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {
         std::cout << "Error in reading exposed library specification." << std::endl;
         exit(1);

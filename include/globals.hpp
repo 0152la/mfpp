@@ -23,7 +23,6 @@ const std::string meta_input_var_get_prefix = "output_var_get";
 // parseFuzzSpec.cpp
 extern llvm::SmallString<256> rewritten_input_file;
 extern std::string rewrite_data;
-extern std::string set_meta_tests_path;
 
 // helperFuncStitch.cpp
 extern std::string output_file;
