@@ -184,6 +184,7 @@ if __name__ == '__main__':
     log_console.debug(f"Setting cwd to {config['working_dir']}")
     os.chdir(config["working_dir"])
     config['output_folder'] = make_abs_path(config['output_folder'], log_console)
+    symlink_name = f"{config['output_folder']}_last"
     if args.append_id:
         config['output_folder'] += f"_{random.getrandbits(20):07d}"
     full_output_file_name = f"{config['output_folder']}/{config['output_file_name']}"
@@ -192,7 +193,6 @@ if __name__ == '__main__':
         shutil.rmtree(config['output_folder'])
     log_console.debug(f"Creating output folder {config['output_folder']}.")
     os.makedirs(config['output_folder'], exist_ok=True)
-    symlink_name = f"{config['output_folder']}_last"
     if os.path.exists(symlink_name):
         os.remove(symlink_name)
     os.symlink(config['output_folder'], symlink_name)
