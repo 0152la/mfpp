@@ -5,6 +5,9 @@ set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(LIB_DIR ${CMAKE_SOURCE_DIR}/libs)
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
 
+SET(CMAKE_FIND_PACKAGE_SORT_ORDER NATURAL)
+SET(CMAKE_FIND_PACKAGE_SORT_DIRECTION DEC)
+
 include_directories("${INCLUDE_DIR}")
 include_directories("${CMAKE_SOURCE_DIR}/third_party/library-metamorphic-testing/include")
 link_directories("${LIB_DIR}")
