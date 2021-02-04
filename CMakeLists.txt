@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 project(MetaLibClangVer)
 set(CMAKE_CXX_STANDARD 17)
-
 set(INCLUDE_DIR ${CMAKE_SOURCE_DIR}/include)
 set(LIB_DIR ${CMAKE_SOURCE_DIR}/libs)
 set(SRC_DIR ${CMAKE_SOURCE_DIR}/src)
@@ -17,23 +16,28 @@ include_directories(${LLVM_INCLUDE_DIRS})
 include_directories(${CLANG_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-if (NOT LLVM_ENABLE_RTTI)
-    message(STATUS "LLVM compiled with RTTI disabled...")
-    add_compile_options("-fno-rtti")
-endif()
-
 add_executable(mtFuzzer
     ${SRC_DIR}/fuzzMetaTest.cpp
-    ${SRC_DIR}/fuzzHelperFuncStitch.cpp
+    ${SRC_DIR}/srcHelperFunctions.cpp
+    ${SRC_DIR}/helperFuncStitch.cpp
     ${SRC_DIR}/parseFuzzerCalls.cpp
-    ${INCLUDE_DIR}/parseFuzzSpec.hpp
-    ${INCLUDE_DIR}/libSpecReader.hpp
-    ${INCLUDE_DIR}/fuzzHelperFuncStitch.hpp
-    ${INCLUDE_DIR}/parseFuzzerCalls.hpp
+    ${SRC_DIR}/parseFuzzSpec.cpp
+    ${SRC_DIR}/generateMetaTests.cpp
+    ${SRC_DIR}/libSpecReader.cpp
+    ${SRC_DIR}/metaSpecReader.cpp
     )
+
+if (NOT LLVM_ENABLE_RTTI)
+    message(STATUS "LLVM compiled with RTTI disabled...")
+    target_compile_options(mtFuzzer PUBLIC -fno-rtti)
+endif()
 
 #target_compile_options(mtFuzzer PUBLIC -stdlib=libc++)
 #target_link_options(mtFuzzer PUBLIC -stdlib=libc++ -lc++abi)
+if (METALIB_ASAN)
+    target_compile_options(mtFuzzer PUBLIC -fsanitize=address)
+    target_link_options(mtFuzzer PUBLIC -fsanitize=address -fno-omit-frame-pointer)
+endif()
 
 target_link_libraries(mtFuzzer
     LLVM

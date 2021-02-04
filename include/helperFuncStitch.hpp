@@ -1,5 +1,5 @@
-#ifndef FUZZ_HELPER_FUNC_STITCH_HPP
-#define FUZZ_HELPER_FUNC_STITCH_HPP
+#ifndef HELPER_FUNC_STITCH_HPP
+#define HELPER_FUNC_STITCH_HPP
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -11,23 +11,33 @@
 #include <iostream>
 #include <numeric>
 
+#include "globals.hpp"
+#include "srcHelperFunctions.hpp"
+
 typedef std::pair<std::vector<clang::Stmt*>, clang::Stmt*> helpFnSplit;
+
+const clang::ast_type_traits::DynTypedNode
+getBaseParent(const clang::ast_type_traits::DynTypedNode, clang::ASTContext&);
+const clang::Stmt*
+getBaseParent(const clang::Expr* e, clang::ASTContext& ctx);
 
 class helperFnDeclareInfo
 {
     public:
-        const clang::FunctionDecl* base_func;
+        const clang::FunctionDecl* base_func = nullptr;
         std::vector<clang::Stmt*> body_instrs;
-        clang::Stmt* return_body;
-        std::vector<const clang::DeclRefExpr*> body_dre;
-        std::vector<const clang::VarDecl*> body_vd;
+        clang::Stmt* return_body = nullptr;
+        std::set<const clang::DeclRefExpr*> body_dre;
+        std::set<const clang::VarDecl*> body_vd;
 
     helperFnDeclareInfo(const clang::FunctionDecl* _fn) : base_func(_fn) {};
 
     std::pair<std::string, std::string>
         getSplitWithReplacements(
-            std::map<const clang::ParmVarDecl*, const clang::Expr*>,
+            std::map<const clang::ParmVarDecl*, const clang::Stmt*>,
             clang::Rewriter&, size_t);
+
+    bool is_empty() { return this->base_func == nullptr; };
 };
 
 class helperFnReplaceInfo
@@ -36,7 +46,7 @@ class helperFnReplaceInfo
         size_t index;
         const clang::CallExpr* call_expr;
         const clang::Stmt* base_stmt;
-        std::map<const clang::ParmVarDecl*, const clang::Expr*>
+        std::map<const clang::ParmVarDecl*, const clang::Stmt*>
             concrete_params;
 
         helperFnReplaceInfo(const clang::CallExpr*, const clang::Stmt*);
@@ -114,4 +124,4 @@ class fuzzHelperFuncStitchAction : public clang::ASTFrontendAction
             clang::CompilerInstance&, llvm::StringRef) override;
 };
 
-#endif // FUZZ_HELPER_FUNC_STITCH_HPP
+#endif // HELPER_FUNC_STITCH_HPP

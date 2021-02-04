@@ -1,0 +1,17 @@
+---
+working_dir: <SPEC_AST_ROOT_DIR>
+template_file: ./SpecASTSpecs/<SPEC_NAME>/<LIB_NAME>.cpp
+output_folder: ./output/<SPEC_NAME>
+output_file_name: t_<SPEC_NAME>.cpp
+lib_list:
+    - ./SpecASTSpecs/<SPEC_NAME>/<LIB_NAME>.h
+compile_script: <SPEC_AST_ROOT_DIR>/scripts/compile.sh
+cmake_script_dir: <SPEC_AST_ROOT_DIR>/<SPEC_NAME>/runtime/
+spec_repo_dir: <SPEC_AST_ROOT_DIR>/SpecASTSpecs/
+lib_repo_dir: <LIB_DIR>
+params:
+    inputs: 3
+    tests: 15
+    test-size: 7
+    test-depth: 7
+    set-meta-path: ./SpecASTSpecs/<SPEC_NAME>/set_meta_tests_<LIB_NAME>.hpp

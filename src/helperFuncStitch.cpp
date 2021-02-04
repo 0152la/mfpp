@@ -1,4 +1,4 @@
-#include "fuzzHelperFuncStitch.hpp"
+#include "helperFuncStitch.hpp"
 
 static std::map<const clang::FunctionDecl*, helperFnDeclareInfo> helper_funcs_splits;
 static std::vector<helperFnReplaceInfo> stitch_exprs;
@@ -6,20 +6,32 @@ static std::vector<helperFnReplaceInfo> stitch_exprs;
 static size_t replace_index = 0;
 static const clang::CompoundStmt* main_child = nullptr;
 
-extern std::string output_file;
-extern llvm::SmallString<256> rewritten_input_file;
-
 const clang::ast_type_traits::DynTypedNode
 getBaseParent(const clang::ast_type_traits::DynTypedNode dyn_node,
     clang::ASTContext& ctx)
 {
     clang::ASTContext::DynTypedNodeList node_parents = ctx.getParents(dyn_node);
-    assert(main_child);
     assert(node_parents.size() == 1);
-    if (node_parents[0].get<clang::CompoundStmt>() == main_child)
+
+    if (const clang::CompoundStmt* cs = node_parents[0].get<clang::CompoundStmt>())
     {
-        return dyn_node;
+        clang::ASTContext::DynTypedNodeList cs_parents = ctx.getParents(*cs);
+        assert(cs_parents.size() == 1);
+        if (cs_parents[0].get<clang::FunctionDecl>())
+        {
+            return dyn_node;
+        }
     }
+
+    //if (main_child && node_parents[0].get<clang::CompoundStmt>() == main_child)
+    //{
+        //return dyn_node;
+    //}
+    //// TODO check correctly against list of MR function_decls
+    //else if (node_parents[0].get<clang::FunctionDecl>())
+    //{
+        //return dyn_node;
+    //}
     return getBaseParent(node_parents[0], ctx);
 }
 
@@ -49,6 +61,7 @@ addNewSplit(const clang::FunctionDecl* fd)
         if (clang::ReturnStmt* return_instr_tmp =
                 llvm::dyn_cast<clang::ReturnStmt>(child))
         {
+            // TODO could handle multiple return instructions
             assert(!return_instr);
             return_instr = *(return_instr_tmp->child_begin());
             assert(std::next(return_instr_tmp->child_begin())
@@ -63,9 +76,42 @@ addNewSplit(const clang::FunctionDecl* fd)
     helper_funcs_splits.at(fd).return_body = return_instr;
 }
 
+static std::string
+parseConcreteVar(const clang::Stmt* s)
+{
+    std::string val = "";
+    if (const clang::DeclRefExpr* dre =
+            llvm::dyn_cast<clang::DeclRefExpr>(s))
+    {
+        return dre->getDecl()->getNameAsString();
+    }
+    else if (const clang::IntegerLiteral* il =
+            llvm::dyn_cast<clang::IntegerLiteral>(s))
+    {
+        return std::to_string(il->getValue().getSExtValue());
+    }
+    else if (const clang::FloatingLiteral* fl =
+            llvm::dyn_cast<clang::FloatingLiteral>(s))
+    {
+        return std::to_string(fl->getValue().convertToFloat());
+    }
+    else if (const clang::StringLiteral* sl =
+            llvm::dyn_cast<clang::StringLiteral>(s))
+    {
+        return "\"" + sl->getString().str() + "\"";
+    }
+    for (clang::ConstStmtIterator ch_it = s->child_begin();
+        ch_it != s->child_end(); ++ch_it)
+    {
+        return parseConcreteVar(*ch_it);
+    }
+    s->dump();
+    assert(false);
+}
+
 std::pair<std::string, std::string>
 helperFnDeclareInfo::getSplitWithReplacements(
-    std::map<const clang::ParmVarDecl*, const clang::Expr*> concrete_vars,
+    std::map<const clang::ParmVarDecl*, const clang::Stmt*> concrete_vars,
     clang::Rewriter& rw, size_t index)
 {
     for (const clang::DeclRefExpr* dre : this->body_dre)
@@ -74,18 +120,8 @@ helperFnDeclareInfo::getSplitWithReplacements(
             llvm::dyn_cast<clang::ParmVarDecl>(dre->getDecl());
             pvd && concrete_vars.count(pvd))
         {
-            std::string replace_text;
-            if (const clang::DeclRefExpr* dre =
-                    llvm::dyn_cast<clang::DeclRefExpr>(concrete_vars.at(pvd)))
-            {
-                replace_text = dre->getDecl()->getNameAsString();
-            }
-            else if (const clang::IntegerLiteral* il =
-                    llvm::dyn_cast<clang::IntegerLiteral>(concrete_vars.at(pvd)))
-            {
-                replace_text = std::to_string(il->getValue().getSExtValue());
-            }
-            rw.ReplaceText(dre->getSourceRange(), replace_text);
+            rw.ReplaceText(dre->getSourceRange(),
+                parseConcreteVar(concrete_vars.at(pvd)));
         }
         else if (const clang::VarDecl* vd =
                 llvm::dyn_cast<clang::VarDecl>(dre->getDecl()))
@@ -117,6 +153,7 @@ helperFnDeclareInfo::getSplitWithReplacements(
     return std::make_pair(rewritten_body, rewritten_return);
 }
 
+
 helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
     const clang::Stmt* _base) : call_expr(_ce), base_stmt(_base)
 {
@@ -130,26 +167,7 @@ helperFnReplaceInfo::helperFnReplaceInfo(const clang::CallExpr* _ce,
     clang::CallExpr::const_arg_iterator call_args_it = _ce->arg_begin();
     for (size_t i = 0; i < _ce->getNumArgs(); ++i)
     {
-        const clang::Stmt* s = *(call_args_it);
-        while (s->child_begin() != s->child_end())
-        {
-            // TODO fix this condition
-            assert(std::next(s->child_begin()) == s->child_end());
-            s = *(s->child_begin());
-        }
-        if (const clang::DeclRefExpr* dre = llvm::dyn_cast<clang::DeclRefExpr>(s))
-        {
-            this->concrete_params.insert(std::make_pair(*(helper_args_it), dre));
-        }
-        else if (const clang::IntegerLiteral* il = llvm::dyn_cast<clang::IntegerLiteral>(s))
-        {
-            this->concrete_params.insert(std::make_pair(*(helper_args_it), il));
-        }
-        else
-        {
-            assert(false);
-        }
-
+        this->concrete_params.insert(std::make_pair(*(helper_args_it), *(call_args_it)));
         helper_args_it++;
         call_args_it++;
     }
@@ -204,13 +222,13 @@ fuzzHelperFuncLocator::run(const clang::ast_matchers::MatchFinder::MatchResult& 
         if (const clang::DeclRefExpr* dre =
                 Result.Nodes.getNodeAs<clang::DeclRefExpr>("helperFuncDRE"))
         {
-            helper_funcs_splits.at(fd).body_dre.push_back(dre);
+            helper_funcs_splits.at(fd).body_dre.insert(dre);
             return;
         }
         else if (const clang::VarDecl* vd =
                 Result.Nodes.getNodeAs<clang::VarDecl>("helperFuncVD"))
         {
-            helper_funcs_splits.at(fd).body_vd.push_back(vd);
+            helper_funcs_splits.at(fd).body_vd.insert(vd);
             return;
         }
         assert(false);
@@ -271,9 +289,7 @@ fuzzHelperFuncStitch::HandleTranslationUnit(clang::ASTContext& ctx)
 bool
 fuzzHelperFuncStitchAction::BeginSourceFileAction(clang::CompilerInstance& ci)
 {
-    std::cout << "[fuzzHelperFuncStitchAction] Parsing input file ";
-    std::cout << ci.getSourceManager().getFileEntryForID(
-        ci.getSourceManager().getMainFileID())->getName().str() << std::endl;
+    fuzz_helpers::EMIT_PASS_START_DEBUG(ci, "fuzzHelperFuncStitchAction");
     return true;
 }
 
@@ -282,8 +298,8 @@ fuzzHelperFuncStitchAction::EndSourceFileAction()
 {
     std::error_code ec;
     int fd;
-    llvm::sys::fs::createTemporaryFile("", ".cpp", fd,
-        rewritten_input_file);
+    llvm::sys::fs::createTemporaryFile("mtFuzz", ".cpp", fd,
+        globals::rewritten_input_file);
     llvm::raw_fd_ostream rif_rfo(fd, true);
     rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
     //llvm::sys::fs::remove(rewritten_input_file);
