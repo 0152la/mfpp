@@ -1,10 +1,12 @@
 # Folders
+docs
 build
 libs
 input
 output
 env
 scripts/yaml
+scripts/make
 
 # Files
 compile_commands.json
