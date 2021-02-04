@@ -63,6 +63,9 @@ parser.add_argument("--log-all-tests", action='store_true',
 parser.add_argument("--always-log-out", action='store_true',
     help = "If set, always prints the output of STDOUT and STDERR for test"\
             " generation phases.")
+parser.add_argument("--print-cmd-out", action='store_true',
+    help = "If set, prints to console the STDOUT and STDERR for test"\
+            " generation phases.")
 
 TIMEOUT_STR = "TIMEOUT"
 
@@ -97,6 +100,9 @@ def exec_cmd(name, cmd, test_id, timeout=None, log_test=False):
             log_runtime.info(f"FAIL {name} command")
         log_runtime.debug(f"STDOUT:\n{out}")
         log_runtime.debug(f"STDERR:\n{err}")
+    if args.print_cmd_out:
+        log_console.info(f"STDOUT:\n{out}")
+        log_console.info(f"STDERR:\n{err}")
     test_save_name = ""
     if proc_timeout:
         log_console.warning(f"Timeout {name} command for test count {test_id}!")

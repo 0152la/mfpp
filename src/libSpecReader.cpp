@@ -169,6 +169,13 @@ fuzzHelperFuncLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& R
         return;
     }
 
+    if (const clang::RecordDecl* RD =
+            Result.Nodes.getNodeAs<clang::RecordDecl>("helperRecord"))
+    {
+        fuzzer::clang::addLibType(RD->getQualifiedNameAsString());
+        return;
+    }
+
     assert(false);
 }
 
@@ -184,11 +191,19 @@ fuzzHelperLogger::fuzzHelperLogger()
 
     matcher.addMatcher(
         clang::ast_matchers::typedefDecl(
-        clang::ast_matchers::hasAncestor(
+        clang::ast_matchers::hasParent(
         clang::ast_matchers::namespaceDecl(
         clang::ast_matchers::hasName(
         "fuzz"))))
             .bind("helperTypedef"), &logger);
+
+    matcher.addMatcher(
+        clang::ast_matchers::recordDecl(
+        clang::ast_matchers::hasParent(
+        clang::ast_matchers::namespaceDecl(
+        clang::ast_matchers::hasName(
+        "fuzz"))))
+            .bind("helperRecord"), &logger);
 }
 
 void

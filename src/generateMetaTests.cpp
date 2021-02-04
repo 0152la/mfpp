@@ -1,6 +1,7 @@
 #include "generateMetaTests.hpp"
 
-static std::vector<const clang::VarDecl*> main_var_decls;
+static std::map<std::string, std::vector<const clang::VarDecl*>>
+    main_var_decls_typed;
 static std::vector<const clang::CallExpr*> meta_test_calls;
 static std::map<size_t, std::vector<std::string>> mr_input_vars;
 static const clang::FunctionDecl* test_main_fd;
@@ -153,11 +154,10 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
     bool first_input_var = true;
     for (const clang::ParmVarDecl* pvd : mgi.mr_decl->base_func->parameters())
     {
-        std::string param_name;
+        std::string param_name = "";
         if (recursive)
         {
             assert(calling_mr);
-            //mr_func_call << pvd->getNameAsString() << std::endl;
             if (param_idx < base_params.size())
             {
                 param_name = base_params.at(param_idx);
@@ -165,7 +165,6 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
             else
             {
                 param_name = retrieveMRDeclVar(calling_mr, pvd->getType().getTypePtr());
-                //mr_func_call << pvd->getNameAsString();
             }
         }
         else if (!base_params.empty())
@@ -183,13 +182,6 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
                     ? pvd->getType()->getPointeeType()
                     : pvd->getType();
 
-            //const clang::QualType pvt =
-                //pvd->getType()->isReferenceType()
-                //? pvd->getType()->getPointeeType()
-                //: pvd->getType();
-            //desugarType(pvt);
-            //pvd->getType()->dump();
-            //dt->dump();
             if (pvt.getTypePtr() == meta_input_var_type)
             {
                 if (first_input_var && mgi.family_idx != 0)
@@ -202,35 +194,29 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
                     param_name = fuzzer::clang::getRandElem(mgi.input_var_names);
                 }
             }
+            else if (std::string pvt_name = pvt.getAsString();
+                     main_var_decls_typed.count(pvt.getAsString()))
+            {
+                std::vector<std::string> candidate_var_names;
+                std::transform(main_var_decls_typed.at(pvt_name).begin(),
+                    main_var_decls_typed.at(pvt_name).end(),
+                    std::back_inserter(candidate_var_names),
+                    [](const clang::VarDecl* vd) -> std::string
+                    {
+                        return vd->getNameAsString();
+                    });
+                param_name = fuzzer::clang::getRandElem(candidate_var_names);
+            }
             else if (pvt->isBuiltinType())
             {
-                // TODO generalise
                 if (const clang::TypedefType* tdt = llvm::dyn_cast<clang::TypedefType>(pvt))
                 {
                     pvt = tdt->desugar();
                 }
-                //pvt = pvt.getDesugaredType();
-                pvt->dump();
-                //pvt.getLocalUnqualifiedType().dump();
-                //pvt.getUnqualifiedType().dump();
                 param_name = fuzz_helpers::getBuiltinRandStr(
                     llvm::dyn_cast<clang::BuiltinType>(pvt));
             }
-            else
-            {
-                std::vector<std::string> candidate_vars;
-                for (const clang::VarDecl* vd : main_var_decls)
-                {
-                    //vd->getNameAsString();
-                    //vd->getType().dump();
-                    if (pvt == vd->getType())
-                    {
-                        candidate_vars.push_back(vd->getNameAsString());
-                    }
-                }
-                assert(!candidate_vars.empty());
-                param_name = fuzzer::clang::getRandElem(candidate_vars);
-            }
+            assert(!param_name.empty());
             if (mgi.family_idx != -1)
             {
                 if (param_name == mgi.curr_mr_var_name)
@@ -483,7 +469,12 @@ testMainLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Result)
     const clang::VarDecl* vd =
             Result.Nodes.getNodeAs<clang::VarDecl>("mainVarDecl");
     assert(vd);
-    main_var_decls.push_back(vd);
+    std::string vd_type_name = vd->getType().getAsString();
+    if (!main_var_decls_typed.count(vd_type_name))
+    {
+        main_var_decls_typed.emplace(vd_type_name, std::vector<const clang::VarDecl*>());
+    }
+    main_var_decls_typed.at(vd_type_name).emplace_back(vd);
 }
 
 void
