@@ -15,7 +15,7 @@ export GCOV_PREFIX=$gcov_prefix
 # Execute experiments
 curr_dir=`pwd`
 cd $spec_ast_dir
-./scripts/run_experiments.py --append-id --mode time --mode-val $time $spec_ast_yaml
+./scripts/run_experiments.py --append-id --debug --mode time --mode-val $time $spec_ast_yaml
 
 # Gather gcno files
 cd $lib_build_dir
