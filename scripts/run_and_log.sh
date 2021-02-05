@@ -15,5 +15,5 @@ export GCOV_PREFIX=$gcov_prefix
 curr_dir=`pwd`
 cd $spec_ast_dir
 ./scripts/run_experiments.py --append-id --mode time --mode-val $time $spec_ast_yaml
-cd $gcov_prefix/./$lib_build_dir
+cd $gcov_prefix.$lib_build_dir
 gcovr --object-directory $lib_build_dir
