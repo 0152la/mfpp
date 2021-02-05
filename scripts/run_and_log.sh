@@ -1,4 +1,4 @@
-if [ $? -ne 5 ]
+if [ $# -ne 5 ]
 then
     echo "Expected five arguments"
     exit 1
