@@ -15,7 +15,6 @@ import sys
 import time
 import yaml
 
-
 import pdb
 
 ###############################################################################
@@ -307,12 +306,12 @@ if __name__ == '__main__':
         try:
             spec_repo = git.Repo(config['spec_repo_dir'])
             stats_writer.write(f"Specification version: {spec_repo.head.commit.hexsha}\n")
-        except KeyError:
+        except (KeyError, git.exc.NoSuchPathError):
             pass
         try:
             lib_repo = git.Repo(config['lib_repo_dir'])
             stats_writer.write(f"Library under test version: {lib_repo.head.commit.hexsha}\n")
-        except KeyError:
+        except (KeyError, git.exc.NoSuchPathError):
             pass
         stats_writer.write(f"Seed: {args.seed}\n")
         stats_writer.write(f"Total experiment time: {datetime.timedelta(seconds=math.trunc(experiment_time))}\n")
