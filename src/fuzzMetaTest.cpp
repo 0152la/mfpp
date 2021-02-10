@@ -42,29 +42,33 @@
 
 #include "clang_interface.hpp"
 
-static llvm::cl::OptionCategory tmpOC("tmp-cat");
+static llvm::cl::OptionCategory fuzzMetaTest("fuzz-meta-test");
 static llvm::cl::opt<size_t> FuzzerSeed("seed",
     llvm::cl::desc("Seed to use in fuzzer"), llvm::cl::init(42),
-    llvm::cl::cat(tmpOC));
+    llvm::cl::cat(fuzzMetaTest));
 static llvm::cl::alias FuzzerSeedAlias("s", llvm::cl::aliasopt(FuzzerSeed));
 static llvm::cl::opt<size_t> MetaInputCount("inputs",
     llvm::cl::desc("Number of metamorphic input variable to create via fuzzing."),
-    llvm::cl::init(3), llvm::cl::cat(tmpOC));
+    llvm::cl::init(3), llvm::cl::cat(fuzzMetaTest));
 static llvm::cl::opt<size_t> MetaTestCount("tests",
     llvm::cl::desc("Number of metamorphic tests to generate."),
-    llvm::cl::init(20), llvm::cl::cat(tmpOC));
+    llvm::cl::init(20), llvm::cl::cat(fuzzMetaTest));
 static llvm::cl::opt<size_t> MetaTestRels("test-size",
     llvm::cl::desc("Number of base metamorphic calls per metamorphic test to generate."),
-    llvm::cl::init(5), llvm::cl::cat(tmpOC));
+    llvm::cl::init(5), llvm::cl::cat(fuzzMetaTest));
 static llvm::cl::opt<size_t> MetaTestDepth("test-depth",
     llvm::cl::desc("Number of maximum recursive calls in a metamorphic test to generate."),
-    llvm::cl::init(10), llvm::cl::cat(tmpOC));
+    llvm::cl::init(10), llvm::cl::cat(fuzzMetaTest));
 static llvm::cl::opt<std::string> TestOutput("output",
     llvm::cl::desc("Path where to emit output file."),
-    llvm::cl::cat(tmpOC), llvm::cl::Required, llvm::cl::value_desc("filename"));
+    llvm::cl::cat(fuzzMetaTest), llvm::cl::Required, llvm::cl::value_desc("filename"));
 static llvm::cl::alias TestOutputAlias("o",
     llvm::cl::desc("Path where to emit output file."),
     llvm::cl::aliasopt(TestOutput));
+static llvm::cl::opt<bool> TrivialVariantCheck("trivial-check",
+    llvm::cl::desc("Whether to trivially check that the first produced variant is equivalent to itself."),
+    llvm::cl::cat(fuzzMetaTest));
+
 
 std::chrono::time_point<std::chrono::system_clock> globals::START_TIME;
 
@@ -76,6 +80,7 @@ size_t globals::meta_input_fuzz_count = 3;
 size_t globals::meta_test_rel_count = 7;
 size_t globals::meta_test_count = 20;
 size_t globals::meta_test_depth = 10;
+bool globals::trivial_check = false;
 
 void
 EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
@@ -91,7 +96,7 @@ int
 main(int argc, char const **argv)
 {
     globals::START_TIME = std::chrono::system_clock::now();
-    clang::tooling::CommonOptionsParser op(argc, argv, tmpOC);
+    clang::tooling::CommonOptionsParser op(argc, argv, fuzzMetaTest);
     fuzzer::clang::setSeed(FuzzerSeed);
     std::cout << "[fuzzMetaTest] Seed set " << FuzzerSeed << std::endl;
 
@@ -106,6 +111,7 @@ main(int argc, char const **argv)
     globals::meta_test_rel_count = MetaTestRels;
     globals::meta_test_count = MetaTestCount;
     globals::meta_test_depth = MetaTestDepth;
+    globals::trivial_check = TrivialVariantCheck;
 
     if (fuzzTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {

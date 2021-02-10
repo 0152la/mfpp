@@ -40,6 +40,10 @@ const std::string meta_input_var_get_prefix = "output_var_get";
 extern llvm::SmallString<256> rewritten_input_file;
 extern std::string rewrite_data;
 
+// generateMetaTests.cpp
+// fuzzMetaTest.cpp
+extern bool trivial_check;
+
 // helperFuncStitch.cpp
 extern std::string output_file;
 

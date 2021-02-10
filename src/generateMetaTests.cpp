@@ -119,8 +119,13 @@ generateSingleMetaTest(std::vector<std::string> input_var_names,
         //std::cout << "ONE RECURSIVE META FUNCTIONS" << std::endl;
         //std::cout << rw_meta_rel.second;
     }
+    if (test_count == 0 && !globals::trivial_check)
+    {
+        return mt_body.str();
+    }
     for (mrInfo meta_check : meta_check_decls)
     {
+
         mgi.setMR(&meta_check);
         mgi.family_idx = -1;
         mgi.input_var_names = { fuzz_helpers::getMetaVarName(0) };
