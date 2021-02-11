@@ -21,6 +21,12 @@
 
 #include <set>
 
+enum depth_pruning {
+    noprune,
+    linear,
+    logarithm
+};
+
 namespace globals
 {
 
@@ -43,6 +49,7 @@ extern std::string rewrite_data;
 // generateMetaTests.cpp
 // fuzzMetaTest.cpp
 extern bool trivial_check;
+extern depth_pruning prune_option;
 
 // helperFuncStitch.cpp
 extern std::string output_file;

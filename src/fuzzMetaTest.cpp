@@ -64,11 +64,17 @@ static llvm::cl::opt<std::string> TestOutput("output",
     llvm::cl::cat(fuzzMetaTest), llvm::cl::Required, llvm::cl::value_desc("filename"));
 static llvm::cl::alias TestOutputAlias("o",
     llvm::cl::desc("Path where to emit output file."),
-    llvm::cl::aliasopt(TestOutput));
+    llvm::cl::aliasopt(TestOutput), llvm::cl::cat(fuzzMetaTest));
 static llvm::cl::opt<bool> TrivialVariantCheck("trivial-check",
     llvm::cl::desc("Whether to trivially check that the first produced variant is equivalent to itself."),
     llvm::cl::cat(fuzzMetaTest));
-
+static llvm::cl::opt<depth_pruning> DepthPruning("prune-depth",
+    llvm::cl::desc("Algorithm to use to prune recursive depth."),
+    llvm::cl::values(
+        clEnumVal(noprune, "[DEFAULT] Unbound recursion - only stops recursing once depth limit hit."),
+        clEnumVal(linear, "Linearly increase probability of pruning recursion with depth increase."),
+        clEnumVal(logarithm, "Quickly increase probability to prune recursion early on.")),
+    llvm::cl::init(depth_pruning::noprune), llvm::cl::cat(fuzzMetaTest));
 
 std::chrono::time_point<std::chrono::system_clock> globals::START_TIME;
 
@@ -80,7 +86,8 @@ size_t globals::meta_input_fuzz_count = 3;
 size_t globals::meta_test_rel_count = 7;
 size_t globals::meta_test_count = 20;
 size_t globals::meta_test_depth = 10;
-bool globals::trivial_check = false;
+bool globals::trivial_check;
+depth_pruning globals::prune_option;
 
 void
 EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
@@ -112,6 +119,7 @@ main(int argc, char const **argv)
     globals::meta_test_count = MetaTestCount;
     globals::meta_test_depth = MetaTestDepth;
     globals::trivial_check = TrivialVariantCheck;
+    globals::prune_option = DepthPruning;
 
     if (fuzzTool.run(clang::tooling::newFrontendActionFactory<libSpecReaderAction>().get()))
     {

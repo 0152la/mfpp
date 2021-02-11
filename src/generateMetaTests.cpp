@@ -203,6 +203,13 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
                     ? pvd->getType()->getPointeeType()
                     : pvd->getType();
 
+            //std::cout << "===== PVD =====" << std::endl;
+            //pvd->dump();
+            //std::cout << "===== PVT =====" << std::endl;
+            //pvt->dump();
+            //std::cout << "===== MIVT =====" << std::endl;
+            //meta_input_var_type->dump();
+
             if (pvt.getTypePtr() == meta_input_var_type)
             {
                 if (first_input_var && mgi.family_idx != 0)
@@ -300,8 +307,27 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
             recursive_mr_family = splits[2];
         }
 
+        bool base_chance;
+        switch (globals::prune_option)
+        {
+            // Linear weighing
+            case linear:
+                base_chance =
+                    fuzzer::clang::generateRand(1, globals::meta_test_depth) < mgi.depth;
+                break;
+            // Front-loaded weighing
+            case logarithm:
+                base_chance =
+                    (log(mgi.depth) / log(globals::meta_test_depth)) <
+                        fuzzer::clang::generateRand(0.0, 1.0);
+                break;
+            // Do not weigh towards base functions
+            case noprune:
+                base_chance = globals::meta_test_depth < mgi.depth;
+        }
+
         mrInfo recursive_mr_func = retrieveRandMrDecl(recursive_mr_type,
-            recursive_mr_family, mgi.depth > globals::meta_test_depth);
+            recursive_mr_family, base_chance);
         mgi.recursive_idx += 1;
 
         std::vector<std::string> mr_call_params;
@@ -433,15 +459,9 @@ retrieveMRDeclVar(mrInfo* mri, const clang::Type* var_type)
             it++;
         }
     }
-    //vars.erase(std::remove_if(std::begin(vars), std::end(vars),
-        //[&var_type](const clang::VarDecl* var)
-        //{
-            //return var->getType().getTypePtr() != var_type;
-        //}));
     it = vars.begin();
     std::advance(it, fuzzer::clang::generateRand(0, vars.size() - 1));
     return (*it)->getNameAsString();
-    //return vars.at(fuzzer::clang::generateRand(0, vars.size() - 1))->getNameAsString();
 }
 
 mrInfo
@@ -464,8 +484,8 @@ retrieveRandMrDecl(REL_TYPE mr_type, std::string family, bool base)
     std::vector<mrInfo> matchingDecls = meta_rel_decls.at(std::make_pair(mr_type, family));
     if (base)
     {
-        matchingDecls.erase(std::remove_if(std::begin(matchingDecls),
-            std::end(matchingDecls),
+        matchingDecls.erase(
+            std::remove_if(std::begin(matchingDecls), std::end(matchingDecls),
             [](mrInfo mri) { return !mri.is_base_func; }),
                 std::end(matchingDecls));
     }
@@ -524,29 +544,6 @@ mrRecursiveLogger::run(const clang::ast_matchers::MatchFinder::MatchResult& Resu
         }
         this->matched_recursive_calls.at(fd).emplace(ce);
     }
-
-    /*
-    if (s)
-    {
-        s->dump();
-        assert(ce);
-        ce->dump();
-        if (!this->matched_recursive_calls.count(fd))
-        {
-            this->matched_recursive_calls.emplace(
-                std::make_pair(fd, std::vector<const clang::CallExpr*>>()));
-            //this->matched_recursive_calls.emplace(
-                //std::make_pair(fd,
-                    //std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>>()));
-        }
-        //if (!this->matched_recursive_calls.at(fd).count(s))
-        //{
-            //this->matched_recursive_calls.at(fd).emplace(
-                //std::make_pair(s, std::vector<const clang::CallExpr*>()));
-        //}
-        this->matched_recursive_calls.at(fd).push_back(ce);
-    }
-    */
 }
 
 metaGenerator::metaGenerator(clang::Rewriter& _rw, clang::ASTContext& _ctx):
@@ -671,6 +668,20 @@ metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
 
     if (new_mr_decl.getFamily().empty())
     {
+        //size_t meta_input_count = 0;
+        //for (const clang::ParmVarDecl* pvd : fd->parameters())
+        //{
+            //std::cout << pvd->getType().getAsString() << std::endl;
+            //std::cout << meta_input_var_type_name << std::endl;
+            //if (!pvd->getNameAsString().compare(meta_input_var_type_name))
+            //{
+                //meta_input_count += 1;
+            //}
+        //}
+        //std::for_each(fd->param_begin(), fd->param_end(),
+            //[&meta_input_count, &meta_input_var_type](const clang::ParmVarDecl* pvd)
+            //{ if (pvd->getType() == meta_input_var_type) { meta_input_count++; }});
+        //assert(meta_input_count >= 2);
         meta_check_decls.push_back(new_mr_decl);
         return;
     }
