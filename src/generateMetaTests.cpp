@@ -312,18 +312,24 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
         {
             // Linear weighing
             case linear:
+            {
                 base_chance =
                     fuzzer::clang::generateRand(1, globals::meta_test_depth) < mgi.depth;
                 break;
+            }
             // Front-loaded weighing
             case logarithm:
+            {
                 base_chance =
-                    (log(mgi.depth) / log(globals::meta_test_depth)) <
+                    (log(mgi.depth + 1) / log(globals::meta_test_depth + 1)) >
                         fuzzer::clang::generateRand(0.0, 1.0);
                 break;
+            }
             // Do not weigh towards base functions
             case noprune:
+            {
                 base_chance = globals::meta_test_depth < mgi.depth;
+            }
         }
 
         mrInfo recursive_mr_func = retrieveRandMrDecl(recursive_mr_type,
