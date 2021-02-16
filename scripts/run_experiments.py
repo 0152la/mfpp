@@ -313,15 +313,22 @@ if __name__ == '__main__':
             stats_writer.write(f"Library under test version: {lib_repo.head.commit.hexsha}\n")
         except (KeyError, git.exc.NoSuchPathError):
             pass
+        stats_writer.write(80 * '-' + '\n');
         stats_writer.write(f"Seed: {args.seed}\n")
+        stats_writer.write(f"Gen timeout: {args.gen_timeout}\n")
+        stats_writer.write(f"Run timeout: {args.run_timeout}\n")
+        stats_writer.write(f"Parameters: {param_string}\n")
+        stats_writer.write(80 * '-' + '\n');
         stats_writer.write(f"Total experiment time: {datetime.timedelta(seconds=math.trunc(experiment_time))}\n")
         stats_writer.write(f"Total test count: {stats['total_tests']}\n")
         stats_writer.write(f"Total generation fails: {stats['gen_fail']}\n")
         stats_writer.write(f"Total compilation fails: {stats['compile_fail']}\n")
         stats_writer.write(f"Total execution fails: {stats['fail_tests']}\n")
         stats_writer.write(f"Total execution timeouts: {stats['timeout_tests']}\n")
+        stats_writer.write(80 * '-' + '\n');
         emit_times_stats(stats['test_gentimes'], "generation", stats_writer)
         emit_times_stats(stats['test_compiletimes'], "compile", stats_writer)
         emit_times_stats(stats['test_runtimes'], "execution", stats_writer)
+        stats_writer.write(80 * '=' + '\n');
         stats_writer.write(f"\nRaw data:\n")
         stats_writer.write(yaml.dump(stats))
