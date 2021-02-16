@@ -62,6 +62,10 @@ parser.add_argument("--log-all-tests", action='store_true',
 parser.add_argument("--always-log-out", action='store_true',
     help = "If set, always prints the output of STDOUT and STDERR for test"\
             " generation phases.")
+# OTHER OPTIONS
+parser.add_argument("--no-symlink", action='store_true',
+    help = "If set, will not symlink the testing folder for ease access to the "
+    "latest experimental run. Useful for running things in parallel.")
 parser.add_argument("--print-cmd-out", action='store_true',
     help = "If set, prints to console the STDOUT and STDERR for test"\
             " generation phases.")
@@ -192,9 +196,10 @@ if __name__ == '__main__':
         shutil.rmtree(config['output_folder'])
     log_console.debug(f"Creating output folder {config['output_folder']}.")
     os.makedirs(config['output_folder'], exist_ok=True)
-    if os.path.exists(symlink_name):
-        os.remove(symlink_name)
-    os.symlink(config['output_folder'], symlink_name)
+    if not args.no_symlink:
+        if os.path.exists(symlink_name):
+            os.remove(symlink_name)
+        os.symlink(config['output_folder'], symlink_name)
 
     save_test_folder_name = "tests"
     save_test_folder = f"{config['output_folder']}/{save_test_folder_name}"
