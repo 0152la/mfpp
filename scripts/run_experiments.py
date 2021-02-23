@@ -156,6 +156,17 @@ def make_abs_path(pth, log, check_exists = False):
     log.debug(f"Returning found absolute path `{pth}`.")
     return pth
 
+def log_git_repo_data(pth, writer):
+    try:
+        pth_repo = git.Repo(pth)
+        writer.write(f"Specification version: {pth_repo.head.commit.hexsha}\n")
+    except (KeyError):
+        writer.write(f"Specification version: KeyError\n")
+    except (git.exc.NoSuchPathError):
+        writer.write(f"Specification version: NoSuchPathError\n")
+    except (git.exc.InvalidGitRepositoryError):
+        writer.write(f"Specification version: InvalidGitRepoError\n")
+
 ###############################################################################
 # Main function
 ###############################################################################
@@ -306,18 +317,9 @@ if __name__ == '__main__':
     log_console.info(f"Finished experiments {config['output_folder']}.")
 
     with open(f"{config['output_folder']}/{args.stats_log}", 'w') as stats_writer:
-        cwd_repo = git.Repo(".")
-        stats_writer.write(f"Generator infrastructure version: {cwd_repo.head.commit.hexsha}\n")
-        try:
-            spec_repo = git.Repo(config['spec_repo_dir'])
-            stats_writer.write(f"Specification version: {spec_repo.head.commit.hexsha}\n")
-        except (KeyError, git.exc.NoSuchPathError):
-            pass
-        try:
-            lib_repo = git.Repo(config['lib_repo_dir'])
-            stats_writer.write(f"Library under test version: {lib_repo.head.commit.hexsha}\n")
-        except (KeyError, git.exc.NoSuchPathError):
-            pass
+        log_git_repo_data(config['working_dir'], stats_writer)
+        log_git_repo_data(config['spec_repo_dir'], stats_writer)
+        log_git_repo_data(config['lib_repo_dir'], stats_writer)
         stats_writer.write(80 * '-' + '\n');
         stats_writer.write(f"Seed: {args.seed}\n")
         stats_writer.write(f"Gen timeout: {args.gen_timeout}\n")
