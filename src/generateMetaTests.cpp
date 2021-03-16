@@ -203,12 +203,12 @@ makeMRFuncCall(mrGenInfo& mgi, mrInfo* calling_mr,
                     ? pvd->getType()->getPointeeType()
                     : pvd->getType();
 
-            //std::cout << "===== PVD =====" << std::endl;
-            //pvd->dump();
-            //std::cout << "===== PVT =====" << std::endl;
-            //pvt->dump();
-            //std::cout << "===== MIVT =====" << std::endl;
-            //meta_input_var_type->dump();
+            std::cout << "===== PVD =====" << std::endl;
+            pvd->dump();
+            std::cout << "===== PVT =====" << std::endl;
+            pvt->dump();
+            std::cout << "===== MIVT =====" << std::endl;
+            meta_input_var_type->dump();
 
             if (pvt.getTypePtr() == meta_input_var_type)
             {
@@ -337,10 +337,21 @@ makeRecursiveFunctionCalls(mrGenInfo& mgi, std::stringstream& funcs_ss)
         mgi.recursive_idx += 1;
 
         std::vector<std::string> mr_call_params;
-        for (const clang::Expr* arg : ce->arguments())
+        for (const clang::Expr* ce_arg : ce->arguments())
         {
+            ce_arg->dump();
+            if (const clang::ImplicitCastExpr* ice_arg =
+                    llvm::dyn_cast<clang::ImplicitCastExpr>(ce_arg))
+            {
+                if (const clang::IntegerLiteral* il_arg =
+                        llvm::dyn_cast<clang::IntegerLiteral>(ice_arg->getSubExpr()))
+                {
+                    mr_call_params.push_back(il_arg->getValue().toString(10, true));
+                    continue;
+                }
+            }
             mr_call_params.push_back(mgi.rw.getRewrittenText(
-                arg->getSourceRange()));
+                ce_arg->getSourceRange()));
         }
 
         mrInfo* curr_mr = mgi.mr_decl;
