@@ -38,18 +38,15 @@ struct mrGenInfo
     std::vector<std::string> input_var_names;
     size_t depth = 0, test_idx, recursive_idx = 0, family_idx = 0;
     bool first_decl = true;
-    const clang::Rewriter& rw;
 
     mrGenInfo(mrInfo* _mr_decl, std::string _curr_mr_var_name,
-        std::vector<std::string> _input_var_names, size_t _test_idx,
-        const clang::Rewriter& _rw) :
+        std::vector<std::string> _input_var_names, size_t _test_idx) :
         mr_decl(_mr_decl), curr_mr_var_name(_curr_mr_var_name),
-        input_var_names(_input_var_names), test_idx(_test_idx), rw(_rw) {};
+        input_var_names(_input_var_names), test_idx(_test_idx) {};
 
     mrGenInfo(std::string _curr_mr_var_name,
-        std::vector<std::string> _input_var_names, size_t _test_idx,
-        const clang::Rewriter& _rw) :
-        mrGenInfo(nullptr, _curr_mr_var_name, _input_var_names, _test_idx, _rw) {};
+        std::vector<std::string> _input_var_names, size_t _test_idx) :
+        mrGenInfo(nullptr, _curr_mr_var_name, _input_var_names, _test_idx) {};
 
     void setMR(mrInfo*);
 };
@@ -58,15 +55,6 @@ std::string retrieveMRDeclVar(mrInfo*, const clang::Type*);
 mrInfo retrieveRandMrDecl(std::string, std::string, bool = false);
 mrInfo retrieveRandMrDecl(REL_TYPE, std::string, bool = false);
 
-std::string generateMetaTests(std::vector<std::string>, const clang::Type*,
-    const std::string, clang::Rewriter&);
-std::string generateSingleMetaTest(std::vector<std::string>, const clang::Type*,
-    const std::vector<std::string>&, clang::Rewriter&, size_t);
-
-std::pair<std::string, std::string> concretizeMetaRelation(mrGenInfo&);
-std::string makeMRFuncCall(mrGenInfo&, mrInfo* = nullptr,
-    std::vector<std::string> = std::vector<std::string>(), bool = false);
-void makeRecursiveFunctionCalls(mrGenInfo&, std::stringstream&);
 
 class testMainLogger : public clang::ast_matchers::MatchFinder::MatchCallback
 {
@@ -91,11 +79,29 @@ class mrRecursiveLogger: public clang::ast_matchers::MatchFinder::MatchCallback
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
 };
 
+class MRTraverser : public clang::RecursiveASTVisitor<MRTraverser>
+{
+    private:
+        mrInfo& mri;
+
+    public:
+        MRTraverser(mrInfo& _mri) : mri(_mri)
+            { this->TraverseDecl(const_cast<clang::FunctionDecl*>(this->mri.base_func)); };
+
+        bool TraverseDecl(clang::Decl*);
+        bool TraverseStmt(clang::Stmt*);
+        bool TraverseType(clang::QualType);
+
+        bool VisitCallExpr(clang::CallExpr*);
+        bool VisitVarDecl(clang::VarDecl*);
+        bool VisitDeclRefExpr(clang::DeclRefExpr*);
+
+};
+
 class metaGenerator : public clang::ASTConsumer
 {
     private:
         clang::ast_matchers::MatchFinder mr_matcher;
-        clang::ast_matchers::MatchFinder mr_dre_matcher;
         testMainLogger main_logger;
         metaCallsLogger mc_logger;
         metaRelsLogger mr_logger;
@@ -104,12 +110,26 @@ class metaGenerator : public clang::ASTConsumer
         clang::Rewriter& rw;
         clang::ASTContext& ctx;
 
+        const std::string recursive_func_call_name = "placeholder";
+        const std::string mr_namespace_name = "metalib";
+        std::string indent = "";
+
     public:
         metaGenerator(clang::Rewriter&, clang::ASTContext&);
 
         void HandleTranslationUnit(clang::ASTContext&) override;
         void logMetaRelDecl(const clang::FunctionDecl*);
         void expandMetaTests();
+
+        std::string generateMetaTests(std::vector<std::string>);
+        std::string generateSingleMetaTest(std::vector<std::string>,
+            const std::vector<std::string>&, size_t);
+
+        std::pair<std::string, std::string> concretizeMetaRelation(mrGenInfo&);
+        std::string makeUniqueFuncCallName(mrGenInfo&);
+        std::string makeMRFuncCall(mrGenInfo&, mrInfo* = nullptr,
+            std::vector<std::string> = std::vector<std::string>(), bool = false);
+        void makeRecursiveFunctionCalls(mrGenInfo&, std::stringstream&);
 };
 
 class metaGeneratorAction : public clang::ASTFrontendAction

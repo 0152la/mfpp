@@ -42,6 +42,7 @@ class mrInfo: public helperFnDeclareInfo
     public:
         REL_TYPE mr_type;
         bool is_base_func = true;
+        bool has_fuzz_call = false;
         std::string mr_name = "";
         std::string mr_family = "";
         //std::map<const clang::Stmt*, std::vector<const clang::CallExpr*>> recursive_calls;
@@ -79,22 +80,6 @@ class metaRelsLogger : public clang::ast_matchers::MatchFinder::MatchCallback
         std::vector<const clang::FunctionDecl*> matched_fds;
 
         virtual void run(const clang::ast_matchers::MatchFinder::MatchResult&) override;
-};
-
-class metaRelsReader : public clang::ASTConsumer
-{
-    private:
-        clang::ast_matchers::MatchFinder mr_matcher;
-        clang::ast_matchers::MatchFinder mr_dre_matcher;
-        metaRelsLogger mr_logger;
-        mrDRELogger dre_logger;
-        clang::ASTContext& ctx;
-
-    public:
-        metaRelsReader(clang::ASTContext& _ctx);
-
-        void HandleTranslationUnit(clang::ASTContext&) override;
-        void logMetaRelDecl(const clang::FunctionDecl*);
 };
 
 class metaRelsReaderAction : public clang::ASTFrontendAction
