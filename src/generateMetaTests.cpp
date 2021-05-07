@@ -49,15 +49,17 @@ MRTraverser::TraverseDecl(clang::Decl* D)
 bool
 MRTraverser::VisitCallExpr(clang::CallExpr* ce)
 {
+    // TODO fix these strings to be variables
     if (const clang::FunctionDecl* fd = ce->getDirectCallee())
     {
-        if (fd->getName().equals("placeholder"))
+        std::string fd_name = fd->getNameAsString();
+        if (!fd_name.compare("placeholder"))
         {
             this->mri.recursive_calls.emplace(ce);
             this->mri.is_base_func = false;
         }
-        else if (fd->getName().equals("fuzz_rand") ||
-                fd->getName().equals("fuzz_new"))
+        else if (!fd_name.compare("fuzz_rand") ||
+                    !fd_name.compare("fuzz_new"))
         {
             this->mri.has_fuzz_call = true;
         }
@@ -581,6 +583,9 @@ retrieveRandMrDecl(std::string mr_type_str, std::string family, bool base)
 mrInfo
 retrieveRandMrDecl(REL_TYPE mr_type, std::string family, bool base)
 {
+    CHECK_CONDITION(meta_rel_decls.count(std::make_pair(mr_type, family)),
+        "Could not find MR type " + mr_type_string_map.at(mr_type) +
+        " for family " + family + " (base " + std::to_string(base) + ").");
     std::vector<mrInfo> matchingDecls = meta_rel_decls.at(std::make_pair(mr_type, family));
     if (base)
     {
@@ -589,7 +594,8 @@ retrieveRandMrDecl(REL_TYPE mr_type, std::string family, bool base)
             [](mrInfo mri) { return !mri.is_base_func; }),
                 std::end(matchingDecls));
     }
-    assert(!matchingDecls.empty());
+    CHECK_CONDITION(!matchingDecls.empty(),
+        "Could not find base MR for family " + family + ".");
     return matchingDecls.at(fuzzer::clang::generateRand(0, matchingDecls.size() - 1));
 }
 
@@ -697,7 +703,10 @@ void
 metaGenerator::logMetaRelDecl(const clang::FunctionDecl* fd)
 {
     mrInfo new_mr_decl(fd);
-    MRTraverser new_mr_traverser(new_mr_decl);
+    if (new_mr_decl.getType() != REL_TYPE::CHECK)
+    {
+        MRTraverser new_mr_traverser(new_mr_decl);
+    }
 
     if (new_mr_decl.getFamily().empty())
     {
