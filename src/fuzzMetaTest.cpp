@@ -100,7 +100,7 @@ EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
 }
 
 int
-main(int argc, char const **argv)
+main(int argc, const char **argv)
 {
     globals::START_TIME = std::chrono::system_clock::now();
     clang::tooling::CommonOptionsParser op(argc, argv, fuzzMetaTest);
