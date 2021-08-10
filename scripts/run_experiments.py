@@ -307,7 +307,7 @@ if __name__ == '__main__':
                 stats["timeout_tests"] += 1
             else:
                 stats["fail_tests"] += 1
-            if args.stop_on_fail:
+            if args.stop_on_fail and run_result["exec_time"] != TIMEOUT_STR:
                 log_console.info("Found execution failure and `stop_on_fail` set; exitting...");
                 break
             continue
