@@ -44,6 +44,7 @@ const std::string meta_input_var_get_prefix = "output_var_get";
 // generateMetaTests.cpp
 // parseFuzzSpec.cpp
 extern llvm::SmallString<256> rewritten_input_file;
+extern std::set<llvm::SmallString<256>> files_to_clean;
 extern std::string rewrite_data;
 
 // generateMetaTests.cpp

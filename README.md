@@ -19,7 +19,7 @@ First step is to retrieve and build the required submodules:
 > git submodule update --init --recursive
 > cd ./third_party/library_metamorphic_testing
 > mkdir build && cd build
-> cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DMETALIB_LIB_ONLY=True -DYAML_BUILD_SHARED=On ..
+> cmake -DCMAKE_BUILD_TYPE=Release -DMETALIB_LIB_ONLY=True -DYAML_BUILD_SHARED=On ..
 ```
 
 `DMETALIB_LIB_ONLY` ensures that we only build the required library file from
@@ -35,7 +35,7 @@ Now, we can build the main project. If Clang is installed in a non-system locati
 
 ```
 > mkdir build && cd build
-> cmake -G Ninja ..
+> cmake ..
 ```
 
 At this point, with an appropriate specification, the tool can be used to generate test files. The usual command line is, from the root folder:

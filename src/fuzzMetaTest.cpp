@@ -79,6 +79,7 @@ static llvm::cl::opt<depth_pruning> DepthPruning("prune-depth",
 std::chrono::time_point<std::chrono::system_clock> globals::START_TIME;
 
 llvm::SmallString<256> globals::rewritten_input_file;
+std::set<llvm::SmallString<256>> globals::files_to_clean;
 std::string globals::rewrite_data;
 std::string globals::output_file = "";
 
@@ -88,16 +89,6 @@ size_t globals::meta_test_count = 20;
 size_t globals::meta_test_depth = 10;
 bool globals::trivial_check;
 depth_pruning globals::prune_option;
-
-void
-EMIT_PASS_DEBUG(const std::string& pass_name, clang::Rewriter& pass_rw)
-{
-    std::error_code ec;
-    int fd;
-    llvm::sys::fs::createTemporaryFile("", ".cpp", fd, globals::rewritten_input_file);
-    llvm::raw_fd_ostream rif_rfo(fd, true);
-    pass_rw.getEditBuffer(pass_rw.getSourceMgr().getMainFileID()).write(rif_rfo);
-}
 
 int
 main(int argc, const char **argv)
@@ -163,4 +154,8 @@ main(int argc, const char **argv)
     std::chrono::duration<double> from_start = std::chrono::system_clock::now() - globals::START_TIME;
     std::cout << "[" << "\033[1m\033[31m" << from_start.count() << "\033[m" << "]";
     std::cout << " End fuzz test " << TestOutput << "." << std::endl;
+    for (llvm::SmallString to_clean : globals::files_to_clean)
+    {
+        llvm::sys::fs::remove(to_clean);
+    }
 }

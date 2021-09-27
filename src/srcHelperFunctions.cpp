@@ -42,6 +42,17 @@ EMIT_PASS_START_DEBUG(clang::CompilerInstance& ci, std::string pass_name)
         << std::endl;
 }
 
+void
+END_PASS_WRITE_TEMP(clang::Rewriter& pass_rw)
+{
+    std::error_code ec;
+    int fd;
+    llvm::sys::fs::createTemporaryFile("", ".cpp", fd, globals::rewritten_input_file);
+    llvm::raw_fd_ostream rif_rfo(fd, true);
+    pass_rw.getEditBuffer(pass_rw.getSourceMgr().getMainFileID()).write(rif_rfo);
+    globals::files_to_clean.insert(globals::rewritten_input_file);
+}
+
 std::string
 getMetaInputVarName(size_t id)
 {
@@ -77,13 +88,4 @@ getBuiltinRandStr(const clang::BuiltinType* bt)
 
 } // namespace fuzz_helpers
 
-//void
-//EMIT_PASS_DEBUG(const std::string& pass_name, const clang::Rewriter& pass_rw)
-//{
-    //std::error_code ec;
-    //int fd;
-    //llvm::sys::fs::createTemporaryFile("", ".cpp", fd, rewritten_input_file);
-    //llvm::raw_fd_ostream rif_rfo(fd, true);
-    //pass_rw.getEditBuffer(rw.getSourceMgr().getMainFileID()).write(rif_rfo);
-//}
 

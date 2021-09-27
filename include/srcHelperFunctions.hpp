@@ -30,6 +30,7 @@
 namespace fuzz_helpers {
 
 void EMIT_PASS_START_DEBUG(clang::CompilerInstance&, std::string);
+void END_PASS_WRITE_TEMP(clang::Rewriter&);
 void CHECK_CONDITION(bool, std::string);
 std::string getMetaInputVarName(size_t);
 std::string getMetaVarName(size_t);
